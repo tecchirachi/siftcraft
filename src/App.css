@@ -228,9 +228,9 @@ font-size: 13px; cursor: pointer; padding: 4px 2px; min-height: 28px;
   display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50;
 }
 .modal {
-  background: var(--surface); color: var(--text); width: 100%; max-width: 440px;
-  max-height: 86dvh; overflow-y: auto; border-radius: 28px;
-  padding: 20px; display: grid; gap: 14px;
+  background: var(--surface); color: var(--text); width: 100%; max-width: 330px;
+  max-height: 86dvh; overflow-y: auto; border-radius: 24px;
+  padding: 16px; display: grid; gap: 10px;
   animation: modal-in 0.2s ease-out;
 }
 @keyframes modal-in { from { transform: scale(0.96) translateY(8px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
@@ -301,3 +301,10 @@ font-size: 13px; cursor: pointer; padding: 4px 2px; min-height: 28px;
 }
 .drawer-item.current { border-color: var(--brand); background: rgba(255, 158, 110, 0.14); }
 .drawer-note { margin-top: auto; color: var(--muted); font-size: 13px; }
+
+/* コンパクトなモーダルと休憩の折りたたみ（Issue #14） */
+.modal-head h2 { font-size: 18px; }
+.modal-form { gap: 10px; }
+.modal-details { border-top: 1px dashed var(--border); padding-top: 8px; }
+.modal-details summary { font-size: 14px; font-weight: 700; color: var(--muted); cursor: pointer; padding: 4px 0; }
+.modal-details .field { margin-top: 8px; }

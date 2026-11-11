@@ -359,7 +359,7 @@ export default function App() {
                 {pickedRows.map((r) => (
                   <li key={r.id} className="modal-shift">
                     <span className="wp-dot" style={{ background: workplaceColor(workplaces, r.workplaceId) }} />
-                    <span className="modal-shift-main">{r.workplaceName} {r.start}–{r.end}<small>実働 {formatMinutes(r.pay.workMinutes)} ・ 休憩{r.breakMinutes}分</small></span>
+                    <span className="modal-shift-main">{r.workplaceName} {r.start}–{r.end}</span>
                     <strong>{formatYen(r.pay.totalPay)}</strong>
                     <button className="delete-btn" onClick={() => removeShift(r.id)}>削除</button>
                   </li>
@@ -400,11 +400,15 @@ export default function App() {
                   <input type="time" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} />
                 </label>
               </div>
-              <label className="field">
-                <span>休憩（分）</span>
-                <input type="number" inputMode="numeric" value={form.breakMinutes} onChange={(e) => setForm({ ...form, breakMinutes: Number(e.target.value) })} />
-              </label>
-              <p className="preview">見込み: 実働 {formatMinutes(preview.workMinutes)} / <strong>{formatYen(preview.totalPay)}</strong>（交通費込み）</p>
+              {/* 休憩は毎回は触らないので折りたたみに移し、常時表示の入力を減らす（Issue #14） */}
+              <details className="modal-details">
+                <summary>休憩を変更する（今は {form.breakMinutes}分）</summary>
+                <label className="field">
+                  <span>休憩（分）</span>
+                  <input type="number" inputMode="numeric" value={form.breakMinutes} onChange={(e) => setForm({ ...form, breakMinutes: Number(e.target.value) })} />
+                </label>
+              </details>
+              <p className="preview">見込み <strong>{formatYen(preview.totalPay)}</strong>（実働 {formatMinutes(preview.workMinutes)}）</p>
               {formOverlaps.length > 0 && (
                 <p className="warn-note">⚠ 時間が重なっています: {formOverlaps.map((s) => `${s.date.slice(5)} ${s.start}–${s.end}（${wpOf(s).name}）`).join('、')}</p>
               )}
