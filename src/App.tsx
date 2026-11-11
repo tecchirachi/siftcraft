@@ -44,6 +44,7 @@ import {
   parseAppearance,
   type Appearance,
 } from './lib/appearance'
+import { tapAction } from './lib/tap'
 // 年間収入トラッカー（Issue #22）
 import { INCOME_WALLS, monthlyTotals, projectYearEnd, wallStatus, yearTotal } from './lib/year'
 
@@ -276,11 +277,14 @@ const animatedTotal = useAnimatedNumber(total)
     workplaceId
       ? frequentPatterns(shifts, workplaceId, (sh) => resolveWorkplace(workplaces, sh.workplaceId).id)[0]
       : undefined
-  // カレンダーのタップ（Issue #31）: 1タップで入力モーダルを直接開く。
-  // #29 でダブルタップ方式を試したが、ユーザーの希望で1タップに戻した。
-  // 選択バーは「最後に開いた日」の要約表示として残してある
+  // カレンダーのタップ（Issue #32）: 未選択の日は選択、選択済みの日は入力を開く。
+  // 時間ベースのダブルタップ判定（#29）は不安定だったため、状態ベースにした
   const handleCellTap = (date: string) => {
-    openDay(date)
+    if (tapAction(pickedDate, date) === 'open') {
+      openDay(date)
+    } else {
+      setPickedDate(date)
+    }
   }
   const openDay = (date: string) => {
     setPickedDate(date)

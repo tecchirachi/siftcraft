@@ -1,41 +1,20 @@
 /**
- * カレンダーのタップ判定（Issue #29）
+ * カレンダーのタップ判定（Issue #32）
  *
- * 役割: 「1タップ=選択、ダブルタップ=入力モーダル」を実現するための判定だけを
- * 切り出したモジュール。画面（React）から切り離すことで単体テストできる。
+ * 変遷: #29 では「300ms以内の再タップ」をダブルタップとして判定していたが、
+ * 時間まかせは押し間違いや端末差で不安定だった。#31 で1タップ即オープンに
+ * 振り切った後、最終的にユーザーが選んだのは状態ベースの方式:
  *
- * 設計:
- * - 1タップ目では何も待たない（選択は即座に反映）。ダブルタップ判定のために
- *   タイマーで遅らせる方式は「反応が遅い」と感じるので採らない。
- * - 「同じ日を thresholdMs 以内にもう一度タップしたら open」だけを判定する。
- *   違う日を続けてタップした場合は、ただの選択として扱う。
+ * - 未選択の日をタップ → その日を「選択」する
+ * - 選択済みの日をもう一度タップ → 入力モーダルを「開く」
+ *
+ * 時間に依存しないので、ゆっくり2回押しても確実に開くし、
+ * 別の日を押せば選択が移るだけ、という予測しやすい挙動になる。
  */
-
-export interface TapState {
-  date: string
-  /** タップ時刻（ミリ秒。Date.now() の値） */
-  at: number
-}
 
 export type TapAction = 'select' | 'open'
 
-/** ダブルタップとみなす間隔（ミリ秒） */
-export const DOUBLE_TAP_MS = 300
-
-/**
- * 前回タップの状態と今回のタップから、今回のアクションを決める。
- * @param prev 前回のタップ（なければ null）
- * @param date 今回タップされた日
- * @param now 今回のタップ時刻
- */
-export function classifyTap(
-  prev: TapState | null,
-  date: string,
-  now: number,
-  thresholdMs: number = DOUBLE_TAP_MS,
-): TapAction {
-  if (prev && prev.date === date && now >= prev.at && now - prev.at <= thresholdMs) {
-    return 'open'
-  }
-  return 'select'
+/** 選択中の日と同じ日をタップしたら 'open'、それ以外は 'select' */
+export function tapAction(pickedDate: string, tappedDate: string): TapAction {
+  return pickedDate === tappedDate ? 'open' : 'select'
 }
