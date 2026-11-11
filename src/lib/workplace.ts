@@ -103,14 +103,14 @@ return [...map.values()].sort((a, b) => b.totalPay - a.totalPay)
  * （並びが変われば色も変わりうる割り切り。識別用なので十分という判断）
  */
 export const WORKPLACE_COLORS = [
-  '#ff9e6e', // ピーチ
-  '#5aa9e6', // 青
-  '#66bb8a', // 緑
-  '#f2b134', // 黄
-  '#b388eb', // 紫
-  '#ef6f6c', // 赤
-  '#4fb3bf', // 水色
-  '#e08dac', // ピンク
+  '#e07f45', // ピーチ（Issue #28 で判別しやすい濃さに調整）
+  '#3f8fd2', // 青
+  '#3f9c72', // 緑
+  '#d99a16', // 黄
+  '#9575cd', // 紫
+  '#e0524d', // 赤
+  '#3598a5', // 水色
+  '#d16a92', // ピンク
 ]
 
 export function workplaceColor(workplaces: Workplace[], id: string | undefined): string {

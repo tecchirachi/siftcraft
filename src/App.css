@@ -14,8 +14,8 @@ Issue #24 でデザインシステムを刷新（Material Design 3 と Apple HIG
 --bg: #fff7ec;
 --surface: #ffffff;
 --text: #3e342a;
---muted: #77644f;
---border: #f3e3cf;
+--muted: #6a5138;
+--border: #ead6b9;
 --brand: #ff9e6e; /* ピーチ */
 --brand2: #7bc8a4; /* ミント */
 --danger: #e0655a;
@@ -23,7 +23,7 @@ Issue #24 でデザインシステムを刷新（Material Design 3 と Apple HIG
 --radius: 24px;
 /* カラーロール（Issue #24 / Material Design 3 方式）
    部品は色を直接持たず、役割名で参照する。テーマはこの値セットを差し替える */
---primary: #c75b26;
+--primary: #b34a1c;
 --on-primary: #ffffff;
 --primary-container: #ffe3d3;
 --on-primary-container: #5c2e12;
@@ -88,11 +88,11 @@ color: var(--on-primary-container);
 @media (prefers-color-scheme: dark) {
 .hero { background: var(--primary-container); }
 }
-.hero-label { margin: 6px 0 0; color: var(--on-primary-container); opacity: 0.75; font-size: 14px; font-weight: 700;}
+.hero-label { margin: 6px 0 0; color: var(--on-primary-container); opacity: 0.88; font-size: 14px; font-weight: 700;}
 .hero-amount { margin: 2px 0; font-size: 44px; font-weight: 800; letter-spacing: 0.5px;}
-.hero-sub { margin: 0 0 14px; color: var(--on-primary-container); opacity: 0.8; font-size: 15px;}
+.hero-sub { margin: 0 0 14px; color: var(--on-primary-container); opacity: 0.92; font-size: 15px;}
 .hero-goal-head { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; margin-bottom: 6px;}
-.hero-goal-note { margin: 8px 0 0; font-size: 14px; color: var(--on-primary-container); opacity: 0.8;}
+.hero-goal-note { margin: 8px 0 0; font-size: 14px; color: var(--on-primary-container); opacity: 0.92;}
 .goal-bar { height: 12px; border-radius: 999px; background: rgba(74, 64, 56, 0.1); overflow: hidden;}
 .goal-fill {
 height: 100%; border-radius: 999px;
@@ -179,23 +179,23 @@ font-size: 13px; cursor: pointer; padding: 4px 2px; min-height: 28px;
   border: none; background: var(--surface-container); color: var(--text);
   font-size: 20px; line-height: 1;
 }
-.cal-week { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 13px; color: var(--muted); font-weight: 700; }
-.cal-week .sun { color: #e0655a; }
-.cal-week .sat { color: #5b8dd9; }
+.cal-week { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 13px; color: var(--text); opacity: 0.9; font-weight: 700; }
+.cal-week .sun { color: #d64f42; }
+.cal-week .sat { color: #4176c4; }
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .cal-cell {
-  min-height: 56px; border: 1px solid transparent; border-radius: 16px;
-  background: transparent; color: var(--text); cursor: pointer;
+  min-height: 56px; border: 2px solid transparent; border-radius: 16px;
+  background: var(--surface-container); color: var(--text); cursor: pointer;
   display: grid; align-content: start; justify-items: center; gap: 1px; padding: 5px 2px;
 }
 .cal-cell.today { background: var(--primary); border-color: transparent; }
 .cal-cell.today .cal-day { color: var(--on-primary); }
 .cal-cell.today .cal-yen { color: var(--on-primary); opacity: 0.85; }
-.cal-cell.picked { background: var(--primary-container); border-color: transparent; }
+.cal-cell.picked { background: var(--primary-container); border-color: var(--primary); }
 
 .cal-day { font-size: 16px; font-weight: 800; }
 .cal-dots { font-size: 7px; color: var(--brand); letter-spacing: 1px; line-height: 1; }
-.cal-yen { font-size: 11px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.cal-yen { font-size: 11px; font-weight: 800; color: var(--text); opacity: 0.85; white-space: nowrap; }
 .cal-detail {
   display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline;
   border-top: 1px dashed var(--border); padding-top: 10px; font-size: 15px;
@@ -224,7 +224,7 @@ font-size: 13px; cursor: pointer; padding: 4px 2px; min-height: 28px;
   margin-right: 5px; vertical-align: baseline;
 }
 .cal-dots { display: inline-flex; gap: 3px; line-height: 1; }
-.cal-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.cal-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .warn-note {
   margin: 0; font-size: 14px; font-weight: 700; color: #b26a00;
   background: rgba(242, 177, 52, 0.16); border-radius: 12px; padding: 8px 12px;
@@ -556,7 +556,7 @@ button:active { transform: scale(0.97); }
   gap: 8px;
 }
 .summary-hero .summary-line { padding: 0; }
-.summary-hero .summary-goal { color: var(--on-primary-container); opacity: 0.75; }
+.summary-hero .summary-goal { color: var(--on-primary-container); opacity: 0.9; }
 .summary-hero .goal-bar { background: rgba(0, 0, 0, 0.08); margin: 0; }
 
 /* ===== 実績バッジ（Issue #25 / ティア制は #26）【学習用解説】
@@ -586,3 +586,19 @@ button:active { transform: scale(0.97); }
   transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .badge-state { font-size: 12px; font-weight: 700; color: var(--accent-dark); }
+
+/* ===== 選択中の日バー（Issue #29）【学習用解説】
+ * 1タップ=選択、ダブルタップ=入力。タップだけでも辿れるよう、
+ * 選択中の日の概要と「入力する」ボタンをカレンダー下に常設する */
+.cal-selected-bar {
+  display: flex; align-items: center; gap: 10px;
+  border-top: 1px dashed var(--border); padding-top: 10px; margin-top: 2px;
+  font-size: 15px;
+}
+.cal-selected-bar .sel-date { font-weight: 800; white-space: nowrap; }
+.cal-selected-bar .sel-info { color: var(--muted); font-size: 14px; margin-right: auto; }
+.cal-selected-bar .sel-open {
+  min-height: 40px; padding: 0 16px; border: none; border-radius: 999px;
+  background: var(--primary); color: var(--on-primary);
+  font-size: 14px; font-weight: 800; cursor: pointer; white-space: nowrap;
+}

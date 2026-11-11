@@ -36,6 +36,7 @@ import { resolveTransport, type TransportMode } from './lib/transport'
 // レベル・ポイント・テーマ（Issue #21）
 import { levelOf, pointsBalance, pointsEarnedOf, THEMES, themeById } from './lib/game'
 import { evaluateBadges, TIER_BONUS_POINTS, TIER_COLORS, totalTiers } from './lib/badge'
+import { classifyTap, type TapState } from './lib/tap'
 // 年間収入トラッカー（Issue #22）
 import { INCOME_WALLS, monthlyTotals, projectYearEnd, wallStatus, yearTotal } from './lib/year'
 
@@ -253,6 +254,19 @@ const animatedTotal = useAnimatedNumber(total)
     workplaceId
       ? frequentPatterns(shifts, workplaceId, (sh) => resolveWorkplace(workplaces, sh.workplaceId).id)[0]
       : undefined
+  // カレンダーのタップ（Issue #29）: 1タップ=選択、ダブルタップ=入力モーダル。
+  // 判定は lib/tap.ts に切り出してある。1タップ目は待たせず即座に選択する
+  const lastTapRef = useRef<TapState | null>(null)
+  const handleCellTap = (date: string) => {
+    const now = Date.now()
+    if (classifyTap(lastTapRef.current, date, now) === 'open') {
+      lastTapRef.current = null
+      openDay(date)
+    } else {
+      lastTapRef.current = { date, at: now }
+      setPickedDate(date)
+    }
+  }
   const openDay = (date: string) => {
     setPickedDate(date)
     // プリフィル（Issue #20）: 開いた時点で前回のバイト先＋その最頻パターンを入れておき、
@@ -408,8 +422,8 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                 ) : (
                   <button
                     key={cell.date}
-                    className={`cal-cell${cell.date === todayStr ? ' today' : ''}`}
-                    onClick={() => openDay(cell.date)}
+                    className={`cal-cell${cell.date === todayStr ? ' today' : ''}${cell.date === pickedDate ? ' picked' : ''}`}
+                    onClick={() => handleCellTap(cell.date)}
                   >
                     <span className="cal-day">{cell.day}</span>
                     {(() => {
@@ -424,6 +438,17 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
               )}
             </div>
 </div>
+            {/* 選択中の日バー（Issue #29）: 1タップ選択の受け皿。
+                ダブルタップしなくても、ここから入力モーダルへ進める */}
+            <div className="cal-selected-bar">
+              <span className="sel-date">{formatDateLabel(pickedDate)}</span>
+              <span className="sel-info">
+                {pickedRows.length > 0
+                  ? `${pickedRows.length}件 ・ ${formatYen(pickedRows.reduce((a, r) => a + r.pay.totalPay, 0))}`
+                  : 'シフトなし'}
+              </span>
+              <button className="sel-open" onClick={() => openDay(pickedDate)}>入力する</button>
+            </div>
           </section>
         </>
       )}
