@@ -19,6 +19,8 @@ import './App.css'
 import { calculatePay, formatMinutes, formatYen, type PaySettings, type ShiftInput} from './lib/pay'
 // 月別フィルタのロジックは lib/filter.ts に切り離してある（Issue #2）
 import { filterByMonth, listMonths } from './lib/filter'
+// 目標金額シミュレーションのロジック（Issue #3）
+import { goalProgress } from './lib/goal'
 
 /** 保存・一覧表示に使う「ID付きのシフト」。ShiftInput に id を足した型 */
 interface ShiftRecord extends ShiftInput {
@@ -28,6 +30,7 @@ id: string
 // localStorage に保存するときのキー名（保存場所の名前）
 const SHIFTS_KEY = 'shiftcraft:shifts'
 const SETTINGS_KEY = 'shiftcraft:settings'
+const GOAL_KEY = 'shiftcraft:goal'
 
 /**
 * localStorage から JSON を読み込むヘルパー関数。
@@ -56,6 +59,8 @@ load(SETTINGS_KEY, { hourlyWage: 1200, transportPerShift: 500}),
 const [shifts, setShifts] = useState<ShiftRecord[]>(() => load(SHIFTS_KEY, []))
 // 月別フィルタで選ばれている月。"2026-11" の形式、空文字なら全期間（Issue #2）
 const [selectedMonth, setSelectedMonth] = useState('')
+// 目標金額（円）。設定と同じく localStorage に保存する（Issue #3）
+const [goalYen, setGoalYen] = useState<number>(() => load(GOAL_KEY, 80000))
 
 // 入力フォームの状態。入力のたびにこのオブジェクトを更新する
 const [form, setForm] = useState<ShiftInput>({
@@ -72,6 +77,7 @@ breakMinutes: 60,
 // ------------------------------------------------------------
 useEffect(() => localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)), [settings])
 useEffect(() => localStorage.setItem(SHIFTS_KEY, JSON.stringify(shifts)), [shifts])
+useEffect(() => localStorage.setItem(GOAL_KEY, JSON.stringify(goalYen)), [goalYen])
 
 // ------------------------------------------------------------
 // 派生データ: シフト一覧を日付順に並べ、各シフトの給料を計算する
@@ -89,6 +95,8 @@ filterByMonth([...shifts], selectedMonth)
 // 合計は「表示中の rows」から求めるので、月を選ぶと合計もその月だけになる
 const total = rows.reduce((sum, r) => sum + r.pay.totalPay, 0)
 const totalMinutes = rows.reduce((sum, r) => sum + r.pay.workMinutes, 0)
+// 目標の進捗は「表示中の合計」に対して計算する（月フィルタと連動する）
+const goal = goalProgress(total, goalYen, settings.hourlyWage)
 
 // ------------------------------------------------------------
 // イベントハンドラ: ユーザー操作で状態を変える関数
@@ -180,6 +188,24 @@ return <p className="preview">このシフトの見込み: 実働 {formatMinutes
 </ul>
 )}
 <p className="total">{selectedMonth? `${selectedMonth.replace('-', '年')}月の合計`: '全期間の合計'}: {formatMinutes(totalMinutes)} / {formatYen(total)}（{rows.length}件）</p>
+</section>
+
+<section className="card">
+<h2>目標金額（Issue #3）</h2>
+<label>
+目標（円）
+<input type="number" value={goalYen} onChange={(e) => setGoalYen(Number(e.target.value))} />
+</label>
+{/* 進捗バー: 外枠の中で、進捗率%の幅のバーを伸ばす */}
+<div className="goal-bar"><div className="goal-fill" style={{ width: `${goal.progressPercent}%` }} /></div>
+{goal.achieved? (
+<p className="total">目標達成です。お疲れさまでした。</p>
+): (
+<p>
+進捗 {goal.progressPercent}% / あと {formatYen(goal.remainingYen)}
+{goal.remainingMinutes !== null && `（時給換算で約 ${formatMinutes(goal.remainingMinutes)}）`}
+</p>
+)}
 </section>
 </main>
 )

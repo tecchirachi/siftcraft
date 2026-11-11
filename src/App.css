@@ -7,4 +7,6 @@
 .shifts li { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
 .total { font-weight: 700; font-size: 1.1rem; }
 .preview { color: #555; }
+.goal-bar { height: 12px; border: 1px solid #bbb; border-radius: 999px; overflow: hidden; }
+.goal-fill { height: 100%; background: #4caf7d; transition: width .3s; }
 @media (prefers-color-scheme: dark) { .card { border-color: #444; } .preview { color: #aaa; } }
