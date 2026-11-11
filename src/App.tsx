@@ -17,6 +17,8 @@ import { useEffect, useMemo, useState} from 'react'
 import './App.css'
 // pay.ts から、計算関数・表示フォーマッタ・型を取り込む
 import { calculatePay, formatMinutes, formatYen, type PaySettings, type ShiftInput} from './lib/pay'
+// 月別フィルタのロジックは lib/filter.ts に切り離してある（Issue #2）
+import { filterByMonth, listMonths } from './lib/filter'
 
 /** 保存・一覧表示に使う「ID付きのシフト」。ShiftInput に id を足した型 */
 interface ShiftRecord extends ShiftInput {
@@ -52,6 +54,8 @@ const [settings, setSettings] = useState<PaySettings>(() =>
 load(SETTINGS_KEY, { hourlyWage: 1200, transportPerShift: 500}),
 )
 const [shifts, setShifts] = useState<ShiftRecord[]>(() => load(SHIFTS_KEY, []))
+// 月別フィルタで選ばれている月。"2026-11" の形式、空文字なら全期間（Issue #2）
+const [selectedMonth, setSelectedMonth] = useState('')
 
 // 入力フォームの状態。入力のたびにこのオブジェクトを更新する
 const [form, setForm] = useState<ShiftInput>({
@@ -76,12 +80,13 @@ useEffect(() => localStorage.setItem(SHIFTS_KEY, JSON.stringify(shifts)), [shift
 // ------------------------------------------------------------
 const rows = useMemo(
 () =>
-[...shifts] // 元の配列を壊さないようコピーしてから sort する
+// まず選ばれている月で絞り込み、次に日付順に並べ、各シフトの給料を計算する
+filterByMonth([...shifts], selectedMonth)
 .sort((a, b) => a.date.localeCompare(b.date))
 .map((s) => ({ shift: s, pay: calculatePay(s, settings)})),
-[shifts, settings],
+[shifts, settings, selectedMonth],
 )
-// 合計も rows から reduce（配列を1つの値に畳み込む）で求める
+// 合計は「表示中の rows」から求めるので、月を選ぶと合計もその月だけになる
 const total = rows.reduce((sum, r) => sum + r.pay.totalPay, 0)
 const totalMinutes = rows.reduce((sum, r) => sum + r.pay.workMinutes, 0)
 
@@ -149,9 +154,19 @@ return <p className="preview">このシフトの見込み: 実働 {formatMinutes
 
 <section className="card">
 <h2>シフト一覧</h2>
+{/* 月別フィルタ（Issue #2）: 候補はデータに登場する月から自動で作る */}
+<label>
+表示する月
+<select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
+<option value="">全期間</option>
+{listMonths(shifts).map((m) => (
+<option key={m} value={m}>{m.replace('-', '年')}月</option>
+))}
+</select>
+</label>
 {rows.length === 0? (
 // 三項演算子で「空のとき」と「あるとき」の表示を切り替える
-<p>まだシフトがありません。上のフォームから追加してください。</p>
+<p>{selectedMonth? 'この月のシフトはありません。': 'まだシフトがありません。上のフォームから追加してください。'}</p>
 ): (
 <ul className="shifts">
 {rows.map(({ shift, pay}) => (
@@ -164,7 +179,7 @@ return <p className="preview">このシフトの見込み: 実働 {formatMinutes
 ))}
 </ul>
 )}
-<p className="total">合計: {formatMinutes(totalMinutes)} / {formatYen(total)}</p>
+<p className="total">{selectedMonth? `${selectedMonth.replace('-', '年')}月の合計`: '全期間の合計'}: {formatMinutes(totalMinutes)} / {formatYen(total)}（{rows.length}件）</p>
 </section>
 </main>
 )
