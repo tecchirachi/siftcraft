@@ -461,8 +461,9 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
               )}
             </div>
 </div>
-            {/* 選択中の日バー（Issue #29）: 1タップ選択の受け皿。
-                ダブルタップしなくても、ここから入力モーダルへ進める */}
+            {/* 選択中の日バー（Issue #29 で追加、#31 で役割変更）:
+                1タップで直接モーダルが開くようになったため、今は
+                「最後に開いた日」の要約と再入力の導線として残している */}
             <div className="cal-selected-bar">
               <span className="sel-date">{formatDateLabel(pickedDate)}</span>
               <span className="sel-info">

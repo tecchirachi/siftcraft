@@ -577,9 +577,9 @@ button:active { transform: scale(0.97); }
 }
 .badge-state { font-size: 12px; font-weight: 700; color: var(--accent-dark); }
 
-/* ===== 選択中の日バー（Issue #29）【学習用解説】
- * 1タップ=選択、ダブルタップ=入力。タップだけでも辿れるよう、
- * 選択中の日の概要と「入力する」ボタンをカレンダー下に常設する */
+/* ===== 選択中の日バー（Issue #29 で追加、#31 で役割変更）【学習用解説】
+ * 当初は「1タップ=選択、ダブルタップ=入力」の受け皿だったが、
+ * #31 で1タップ即入力になったため、最後に開いた日の概要表示として残す */
 .cal-selected-bar {
   display: flex; align-items: center; gap: 10px;
   border-top: 1px dashed var(--border); padding-top: 10px; margin-top: 2px;
