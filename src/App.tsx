@@ -19,6 +19,8 @@ import { filterByMonth, listMonths} from './lib/filter'
 import { goalProgress} from './lib/goal'
 import { shiftsToCsv} from './lib/csv'
 import { validateShift} from './lib/validate'
+// 予定表（カレンダー）のロジック（Issue #6）
+import { buildMonthGrid, groupByDate, shiftMonth } from './lib/calendar'
 /** 保存・一覧表示に使う「ID付きのシフト」 */
 interface ShiftRecord extends ShiftInput {
 id: string
@@ -56,6 +58,10 @@ const [shifts, setShifts] = useState<ShiftRecord[]>(() => load(SHIFTS_KEY, []))
 const [selectedMonth, setSelectedMonth] = useState('')
 const [goalYen, setGoalYen] = useState<number>(() => load(GOAL_KEY, 80000))
 const [errors, setErrors] = useState<string[]>([])
+// 予定表で表示中の年月と、タップで選ばれた日（Issue #6）
+const now = new Date()
+const [viewYM, setViewYM] = useState({ year: now.getFullYear(), month: now.getMonth()+ 1})
+const [pickedDate, setPickedDate] = useState(now.toISOString().slice(0, 10))
 const [form, setForm] = useState<ShiftInput>({
 date: new Date().toISOString().slice(0, 10),
 start: '09:00',
@@ -81,6 +87,11 @@ const totalMinutes = rows.reduce((sum, r) => sum + r.pay.workMinutes, 0)
 const goal = goalProgress(total, goalYen, settings.hourlyWage)
 const preview = calculatePay(form, settings)
 const periodLabel = selectedMonth? `${selectedMonth.replace('-', '年')}月`: '全期間'
+// 予定表用: 表示月のマス並びと、日付ごとにまとめたシフト（金額つき）
+const calGrid = buildMonthGrid(viewYM.year, viewYM.month)
+const calByDate = groupByDate(shifts.map((s) => ({...s, pay: calculatePay(s, settings)})))
+const pickedRows = calByDate.get(pickedDate)?? []
+const todayStr = now.toISOString().slice(0, 10)
 
 // ---- 操作 ----
 const addShift = () => {
@@ -139,6 +150,52 @@ onChange={(e) => setSelectedMonth(e.target.value)}
 ? '目標達成です。お疲れさまでした。'
 : `あと ${formatYen(goal.remainingYen)}${goal.remainingMinutes!== null? `（約 ${formatMinutes(goal.remainingMinutes)}）`: ''}`}
 </p>
+</div>
+</section>
+
+{/* 予定表（Issue #6）: シフトのある日が一目で分かる月カレンダー */}
+<section className="card">
+<div className="card-head">
+<button className="nav-btn" aria-label="前の月" onClick={() => setViewYM((v) => shiftMonth(v.year, v.month, -1))}>‹</button>
+<h2>{viewYM.year}年{viewYM.month}月の予定表</h2>
+<button className="nav-btn" aria-label="次の月" onClick={() => setViewYM((v) => shiftMonth(v.year, v.month, 1))}>›</button>
+</div>
+<div className="cal-week">
+{['日', '月', '火', '水', '木', '金', '土'].map((w, i) => (<span key={w} className={i === 0? 'sun': i === 6? 'sat': ''}>{w}</span>))}
+</div>
+<div className="cal-grid">
+{calGrid.map((cell, i) =>
+cell === null? (
+<span key={i} />
+): (
+<button
+key={cell.date}
+className={`cal-cell${cell.date === todayStr? ' today': ''}${cell.date === pickedDate? ' picked': ''}`}
+onClick={() => {
+// 日をタップしたら、その日を選んで、追加フォームの日付にも入れる
+setPickedDate(cell.date)
+setForm((f) => ({...f, date: cell.date}))
+}}
+>
+<span className="cal-day">{cell.day}</span>
+{(() => {
+const dayRows = calByDate.get(cell.date)
+if (!dayRows) return null
+const sum = dayRows.reduce((a, r) => a + r.pay.totalPay, 0)
+return (<><span className="cal-dots">{'●'.repeat(Math.min(3, dayRows.length))}</span><span className="cal-yen">{formatYen(sum)}</span></>)
+})()}
+</button>
+),
+)}
+</div>
+{/* 選んだ日の詳細 */}
+<div className="cal-detail">
+<strong>{pickedDate.slice(5).replace('-', '月')}日</strong>
+{pickedRows.length === 0? (
+<span>シフトはありません（上の日付がフォームに入りました）</span>
+): (
+pickedRows.map((r) => (<span key={r.id}>{r.start}–{r.end} / {formatYen(r.pay.totalPay)}</span>))
+)}
 </div>
 </section>
 
