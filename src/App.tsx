@@ -35,6 +35,8 @@ import { periodFor } from './lib/payperiod'
 import { resolveTransport, type TransportMode } from './lib/transport'
 // レベル・ポイント・テーマ（Issue #21）
 import { levelOf, pointsBalance, pointsEarnedOf, THEMES, themeById } from './lib/game'
+// 年間収入トラッカー（Issue #22）
+import { INCOME_WALLS, monthlyTotals, projectYearEnd, wallStatus, yearTotal } from './lib/year'
 
 /** フォームとシフト共通の形: 入力項目 + 選んだバイト先のID */
 interface ShiftForm extends ShiftInput {
@@ -203,6 +205,16 @@ return { hourlyWage: wp.hourlyWage, transportPerShift: resolveTransport(wp, s.tr
   const pointsEarned = pointsEarnedOf(gameStats)
   const points = pointsBalance(gameStats, unlockedThemes)
   const activeTheme = themeById(themeId)
+  // 年間トラッカー用（Issue #22）: 交通費は非課税なので年収から除く
+  const yearEntries = shifts.map((sh) => {
+    const p = calculatePay(sh, settingsOf(sh))
+    return { date: sh.date, taxablePay: p.totalPay - p.transportPay }
+  })
+  const year = viewYM.year
+  const yTotal = yearTotal(yearEntries, year)
+  const yMonthly = monthlyTotals(yearEntries, year)
+  const yMaxMonth = Math.max(1, ...yMonthly)
+  const yProjection = projectYearEnd(yearEntries, year, new Date().toISOString().slice(0, 10))
   const unlockTheme = (id: string) => {
     if (!unlockedThemes.includes(id)) setUnlockedThemes((u) => [...u, id])
     setThemeId(id)
@@ -480,6 +492,37 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                 </span>
               )
             })}
+          </div>
+          {/* 年間収入トラッカー（Issue #22） */}
+          <div className="check-block">
+            <span className="wp-totals-title">年間収入（{year}年・税金の目安）</span>
+            <p className="year-total">{formatYen(yTotal)}</p>
+            <p className="page-note">交通費は非課税のため除いて計算しています。実際の課税は他の収入や控除でも変わるので目安として使ってください。</p>
+            {INCOME_WALLS.map((w) => {
+              const st = wallStatus(yTotal, w.limit)
+              return (
+                <div key={w.limit} className="wall-row">
+                  <div className="wall-head">
+                    <span>{w.label}</span>
+                    <span className={`wall-state ${st.state}`}>
+                      {st.state === 'over' ? `${formatYen(-st.remaining)} 超過` : st.state === 'caution' ? `あと ${formatYen(st.remaining)}` : `あと ${formatYen(st.remaining)}`}
+                    </span>
+                  </div>
+                  <div className="goal-bar"><div className={`wall-fill ${st.state}`} style={{ width: `${Math.min(100, st.percent)}%` }} /></div>
+                </div>
+              )
+            })}
+            {year === Number(todayStr.slice(0, 4)) && yTotal > 0 && (
+              <p className="page-note">このペースだと年末に約 {formatYen(yProjection)} の見込みです。</p>
+            )}
+            <div className="month-bars" aria-hidden="true">
+              {yMonthly.map((v, i) => (
+                <div key={i} className="month-bar-col">
+                  <div className="month-bar" style={{ height: `${Math.round((v / yMaxMonth) * 100)}%` }} />
+                  <span>{i + 1}</span>
+                </div>
+              ))}
+            </div>
           </div>
           <button className="ghost-btn" onClick={downloadCsv} disabled={rows.length === 0}>{viewYM.month}月のCSVで保存</button>
           <p className="page-note">集計はカレンダーで表示中の月に連動します。月を変えるときはカレンダーページで月移動してください。</p>
