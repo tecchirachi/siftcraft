@@ -19,6 +19,55 @@ import { filterByMonth, listMonths} from './lib/filter'
 import { goalProgress} from './lib/goal'
 import { shiftsToCsv} from './lib/csv'
 import { validateShift} from './lib/validate'
+// マスコット育成ロジック（進捗で成長する仕掛け）
+import { mascotForProgress } from './lib/mascot'
+
+/**
+ * マスコット「まるまる」の描画【学習用】
+ * SVG（ベクター画像）を JSX として直接書いている。
+ * level に応じて、頭の芽の形と表情を描き分けるのがポイント。
+ * 画像ファイルを使わないので、拡大しても荒れず、色も自由に変えられる。
+ */
+function Mascot({ level }: { level: number }) {
+  const happy = level >= 3 // レベル3以上はニコニコ目（弧）になる
+  return (
+    <svg className="mascot" viewBox="0 0 120 120" role="img" aria-label="マスコットのまるまる">
+      <ellipse cx="44" cy="106" rx="9" ry="4.5" fill="#f0c184" />
+      <ellipse cx="76" cy="106" rx="9" ry="4.5" fill="#f0c184" />
+      <circle cx="60" cy="70" r="38" fill="#ffe7c2" />
+      <ellipse cx="60" cy="86" rx="20" ry="13" fill="#fff4e0" />
+      <path d="M60 34 C60 28 60 24 60 20" stroke="#5da271" strokeWidth="3" fill="none" strokeLinecap="round" />
+      {level === 1 && <ellipse cx="60" cy="16" rx="5.5" ry="4.5" fill="#b08968" />}
+      {level >= 2 && <path d="M60 22 C48 22 43 12 43 7 C54 7 60 13 60 22 Z" fill="#7bc47f" />}
+      {level >= 3 && <path d="M60 22 C72 22 77 12 77 7 C66 7 60 13 60 22 Z" fill="#93d198" />}
+      {level === 4 && <circle cx="60" cy="10" r="5.5" fill="#f49ac1" />}
+      {level >= 5 && (
+        <g>
+          <circle cx="60" cy="2" r="6" fill="#f7a8b8" />
+          <circle cx="49" cy="8" r="6" fill="#f7a8b8" />
+          <circle cx="71" cy="8" r="6" fill="#f7a8b8" />
+          <circle cx="52" cy="18" r="6" fill="#f7a8b8" />
+          <circle cx="68" cy="18" r="6" fill="#f7a8b8" />
+          <circle cx="60" cy="10" r="4.5" fill="#ffd166" />
+        </g>
+      )}
+      <circle cx="35" cy="78" r="7" fill="#ffb59e" opacity="0.8" />
+      <circle cx="85" cy="78" r="7" fill="#ffb59e" opacity="0.8" />
+      {happy ? (
+        <g stroke="#4a4038" strokeWidth="3" fill="none" strokeLinecap="round">
+          <path d="M40 66 q6 -7 12 0" />
+          <path d="M68 66 q6 -7 12 0" />
+        </g>
+      ) : (
+        <g fill="#4a4038">
+          <circle cx="46" cy="66" r="3.6" />
+          <circle cx="74" cy="66" r="3.6" />
+        </g>
+      )}
+      <path d={level >= 4 ? 'M53 76 q7 7 14 0' : 'M55 76 q5 5 10 0'} stroke="#4a4038" strokeWidth="3" fill="none" strokeLinecap="round" />
+    </svg>
+  )
+}
 
 /** 保存・一覧表示に使う「ID付きのシフト」 */
 interface ShiftRecord extends ShiftInput {
@@ -80,6 +129,8 @@ filterByMonth([...shifts], selectedMonth)
 const total = rows.reduce((sum, r) => sum + r.pay.totalPay, 0)
 const totalMinutes = rows.reduce((sum, r) => sum + r.pay.workMinutes, 0)
 const goal = goalProgress(total, goalYen, settings.hourlyWage)
+// マスコットの状態は「目標の進捗率」から決める（育成ロジックは lib/mascot.ts）
+const mascot = mascotForProgress(goal.progressPercent)
 const preview = calculatePay(form, settings)
 const periodLabel = selectedMonth? `${selectedMonth.replace('-', '年')}月`: '全期間'
 
@@ -106,10 +157,10 @@ URL.revokeObjectURL(url)
 return (
 <main className="app">
 <header className="app-header">
-<div className="logo">S</div>
+<div className="logo">🌱</div>
 <div>
 <h1>ShiftCraft</h1>
-<p>シフトと給料の見込み</p>
+<p>まるまると一緒に貯めよう</p>
 </div>
 <select
 className="month-select"
@@ -126,6 +177,14 @@ onChange={(e) => setSelectedMonth(e.target.value)}
 
 {/* ヒーロー: 一番見たい数字を大きく */}
 <section className="hero">
+{/* マスコットと吹き出し: 進捗に応じて成長と一言が変わる */}
+<div className="hero-top">
+<Mascot level={mascot.level} />
+<div className="bubble">
+<p className="bubble-stage">まるまる Lv.{mascot.level}（{mascot.stageName}）</p>
+<p className="bubble-text">{mascot.message}</p>
+</div>
+</div>
 <p className="hero-label">{periodLabel}の見込み給料</p>
 <p className="hero-amount">{formatYen(total)}</p>
 <p className="hero-sub">実働 {formatMinutes(totalMinutes)} ・ {rows.length}件のシフト</p>
@@ -134,7 +193,7 @@ onChange={(e) => setSelectedMonth(e.target.value)}
 <span>目標 {formatYen(goalYen)}</span>
 <span>{goal.progressPercent}%</span>
 </div>
-<div className="goal-bar light"><div className="goal-fill" style={{ width: `${goal.progressPercent}%`}} /></div>
+<div className="goal-bar"><div className="goal-fill" style={{ width: `${goal.progressPercent}%`}} /></div>
 <p className="hero-goal-note">
 {goal.achieved
 ? '目標達成です。お疲れさまでした。'
