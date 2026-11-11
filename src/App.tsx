@@ -13,7 +13,7 @@
  * - 日付タップでモーダルが開き、その日の確認と入力ができる（Issue #13）
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import './App.css'
 import { calculatePay, formatMinutes, formatYen, type ShiftInput } from './lib/pay'
 import { goalProgress } from './lib/goal'
@@ -33,6 +33,8 @@ import { weeklyDates } from './lib/repeat'
 import { periodFor } from './lib/payperiod'
 // 交通費の詳細設定（Issue #18）
 import { resolveTransport, type TransportMode } from './lib/transport'
+// レベル・ポイント・テーマ（Issue #21）
+import { levelOf, pointsBalance, pointsEarnedOf, THEMES, themeById } from './lib/game'
 
 /** フォームとシフト共通の形: 入力項目 + 選んだバイト先のID */
 interface ShiftForm extends ShiftInput {
@@ -49,6 +51,9 @@ const SETTINGS_KEY = 'shiftcraft:settings'
 const GOAL_KEY = 'shiftcraft:goal'
 const WORKPLACES_KEY = 'shiftcraft:workplaces'
 const ACTUALS_KEY = 'shiftcraft:actuals'
+// レベル・テーマ用（Issue #21）
+const THEME_KEY = 'shiftcraft:theme'
+const UNLOCKED_KEY = 'shiftcraft:unlockedThemes'
 
 /** 実績（明細の支給額）: バイト先ID×対象月 → 金額 */
 interface ActualRecord {
@@ -104,11 +109,12 @@ function useAnimatedNumber(target: number, duration = 500): number {
 }
 
 /** 表示中のページ。ルーターなしで state 切り替えする（Issue #12） */
-type Page = 'calendar' | 'summary' | 'workplaces' | 'settings'
+type Page = 'calendar' | 'summary' | 'workplaces' | 'level' | 'settings'
 const PAGE_TITLES: Record<Page, string> = {
   calendar: 'カレンダー',
   summary: '集計',
   workplaces: 'バイト先',
+  level: 'レベル・テーマ',
   settings: '設定',
 }
 
@@ -126,6 +132,12 @@ export default function App() {
 const [actuals, setActuals] = useState<ActualRecord[]>(() => load(ACTUALS_KEY, []))
 // 繰り返し登録の回数と、直近の登録結果メッセージ（Issue #16）
 const [repeatCount, setRepeatCount] = useState(1)
+// 使用中テーマと解放済みテーマ（Issue #21）
+const [themeId, setThemeId] = useState<string>(() => load(THEME_KEY, 'peach'))
+const [unlockedThemes, setUnlockedThemes] = useState<string[]>(() => {
+  const saved = load<string[]>(UNLOCKED_KEY, [])
+  return saved.includes('peach') ? saved : ['peach', ...saved]
+})
 const [repeatNote, setRepeatNote] = useState('')
   const [page, setPage] = useState<Page>('calendar')
 // 月移動アニメーションの方向（Issue #19）
@@ -152,6 +164,8 @@ const [slideDir, setSlideDir] = useState<'next' | 'prev' | ''>('')
   useEffect(() => localStorage.setItem(SHIFTS_KEY, JSON.stringify(shifts)), [shifts])
   useEffect(() => localStorage.setItem(GOAL_KEY, JSON.stringify(goalYen)), [goalYen])
 useEffect(() => localStorage.setItem(ACTUALS_KEY, JSON.stringify(actuals)), [actuals])
+useEffect(() => localStorage.setItem(THEME_KEY, JSON.stringify(themeId)), [themeId])
+useEffect(() => localStorage.setItem(UNLOCKED_KEY, JSON.stringify(unlockedThemes)), [unlockedThemes])
 
   // ---- 派生データ ----
   // シフトのバイト先を解決し、そのバイト先の時給・交通費で計算するためのヘルパー
@@ -180,6 +194,19 @@ return { hourlyWage: wp.hourlyWage, transportPerShift: resolveTransport(wp, s.tr
   const totalMinutes = rows.reduce((sum, r) => sum + r.pay.workMinutes, 0)
   // 「あと何時間」の換算は先頭のバイト先の時給を代表値として使う
   const goal = goalProgress(total, goalYen, workplaces[0]?.hourlyWage ?? 0)
+  // レベル・ポイントは全期間の実績から計算する（Issue #21）。保存せず毎回導出する
+  const gameStats = {
+    totalWorkMinutes: shifts.reduce((a, sh) => a + calculatePay(sh, settingsOf(sh)).workMinutes, 0),
+    totalShifts: shifts.length,
+  }
+  const levelInfo = levelOf(gameStats)
+  const pointsEarned = pointsEarnedOf(gameStats)
+  const points = pointsBalance(gameStats, unlockedThemes)
+  const activeTheme = themeById(themeId)
+  const unlockTheme = (id: string) => {
+    if (!unlockedThemes.includes(id)) setUnlockedThemes((u) => [...u, id])
+    setThemeId(id)
+  }
 const animatedTotal = useAnimatedNumber(total)
   const preview = calculatePay(form, settingsOf(form))
   // 入力中の内容と重なる既存シフト（Issue #9）。入力のたびに再計算される
@@ -289,7 +316,7 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
 
   // ---- 画面 ----
   return (
-    <main className={page === 'calendar' ? 'app app-main' : 'app'}>
+    <main className={page === 'calendar' ? 'app app-main' : 'app'} style={activeTheme.vars as CSSProperties}>
       {/* ヘッダー: アプリ名とハンバーガーボタンは全ページ共通 */}
       <header className="app-header">
         <button className="menu-btn" aria-label="メニューを開く" onClick={() => setMenuOpen(true)}>
@@ -332,6 +359,13 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
             <span className="summary-goal">目標 {goal.progressPercent}%</span>
           </div>
           <div className="goal-bar mini"><div className="goal-fill" style={{ width: `${goal.progressPercent}%` }} /></div>
+          {/* レベル表示（Issue #21）: タップでレベル・テーマページへ */}
+          <button className="level-line" onClick={() => goPage('level')}>
+            <span className="level-badge">Lv.{levelInfo.level}</span>
+            <span className="level-title">{levelInfo.title}</span>
+            <span className="level-bar"><span className="level-fill" style={{ width: `${levelInfo.progressPercent}%` }} /></span>
+            <span className="level-points">{points} P</span>
+          </button>
 
           <section className="card cal-card">
             <div className="card-head">
@@ -532,6 +566,54 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
             </div>
           ))}
           <button className="ghost-btn" onClick={addWorkplace}>＋ バイト先を追加</button>
+        </section>
+      )}
+
+      {/* ===== ページ: レベル・テーマ（Issue #21） ===== */}
+      {page === 'level' && (
+        <section className="card page-card page-anim">
+          <h2>レベル・テーマ</h2>
+          <div className="level-hero">
+            <span className="level-badge big">Lv.{levelInfo.level}</span>
+            <div>
+              <p className="level-hero-title">{levelInfo.title}</p>
+              <p className="page-note">{levelInfo.xp} XP ・ 次のレベルまで あと {Math.max(0, levelInfo.nextLevelXp - levelInfo.xp)} XP</p>
+            </div>
+          </div>
+          <div className="goal-bar"><div className="goal-fill level-fill-bar" style={{ width: `${levelInfo.progressPercent}%` }} /></div>
+          <p className="page-note">累計の実働 {formatMinutes(gameStats.totalWorkMinutes)} ・ {gameStats.totalShifts} 件のシフトで経験値を計算しています（実働1時間=10XP、1シフト=15XP）。</p>
+          <div className="points-box">
+            <span>ポイント残高</span>
+            <strong>{points} P</strong>
+            <span className="page-note">（累計 {pointsEarned} P 獲得）</span>
+          </div>
+          <span className="wp-totals-title">UIテーマ（ポイントで解放）</span>
+          <div className="theme-grid">
+            {THEMES.map((t) => {
+              const unlocked = unlockedThemes.includes(t.id)
+              const active = activeTheme.id === t.id
+              const afford = points >= t.cost
+              return (
+                <div key={t.id} className={`theme-card${active ? ' active' : ''}`}>
+                  <span className="theme-swatches">
+                    <span className="theme-swatch" style={{ background: t.swatch[0] }} />
+                    <span className="theme-swatch" style={{ background: t.swatch[1] }} />
+                  </span>
+                  <span className="theme-name">{t.name}</span>
+                  {active ? (
+                    <button className="step-btn" disabled>使用中</button>
+                  ) : unlocked ? (
+                    <button className="step-btn" onClick={() => setThemeId(t.id)}>使う</button>
+                  ) : afford ? (
+                    <button className="step-btn" onClick={() => unlockTheme(t.id)}>{t.cost} P で解放</button>
+                  ) : (
+                    <button className="step-btn" disabled>あと {t.cost - points} P</button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <p className="page-note">テーマは色の組み合わせだけを変えます。データや計算には影響しません。</p>
         </section>
       )}
 

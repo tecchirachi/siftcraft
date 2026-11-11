@@ -16,6 +16,11 @@
 --danger: #e0655a;
 --shadow: 0 10px 24px rgba(190, 140, 90, 0.12);
 --radius: 24px;
+/* 別名（後から追加した部品が使う名前を、基本の変数に寄せる） */
+--accent: var(--brand);
+--accent-dark: #e07f45;
+--ink: var(--text);
+--line: var(--border);
 }
 @media (prefers-color-scheme: dark) {
 :root {
@@ -434,3 +439,72 @@ button:active { transform: scale(0.97); }
 }
 .check-input { display: flex; gap: 6px; align-items: center; }
 .check-input input { flex: 1; min-width: 0; }
+
+/* ===== レベル・テーマ（Issue #21）【学習用解説】
+ * テーマは CSS変数の差し替えだけで切り替える。コンポーネント側は
+ * style 属性で変数の値を渡すだけなので、見た目の分岐がコードに増えない */
+.level-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 4px 2px;
+  border: none;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+}
+.level-badge {
+  background: linear-gradient(135deg, var(--brand2), var(--brand));
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+.level-badge.big { font-size: 17px; padding: 8px 16px; }
+.level-title { font-weight: 700; white-space: nowrap; }
+.level-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+.level-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--brand2), var(--brand));
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.level-points { font-weight: 800; color: var(--accent-dark); white-space: nowrap; }
+.level-hero { display: flex; align-items: center; gap: 14px; }
+.level-hero-title { margin: 0; font-size: 22px; font-weight: 800; }
+.level-fill-bar { background: linear-gradient(90deg, var(--brand2), var(--brand)); }
+.points-box {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  border: 1px dashed var(--brand);
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: rgba(255, 158, 110, 0.08);
+}
+.points-box strong { font-size: 24px; }
+.theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.theme-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  background: var(--surface);
+}
+.theme-card.active { border-color: var(--brand); box-shadow: var(--shadow); }
+.theme-swatches { display: flex; gap: 6px; }
+.theme-swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.18); }
+.theme-name { font-weight: 700; font-size: 15px; }
