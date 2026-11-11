@@ -10,7 +10,7 @@
  *   サマリー1行、月移動、カレンダーだけ。画面の高さいっぱいに広げる
  * - 集計・バイト先・設定は別ページにし、ハンバーガーメニュー
  *   （ドロワー）から移動する。ルーターは入れず state で切り替える
- * - 日付タップで Bottom sheet が開き、その日の確認と入力ができる
+ * - 日付タップでモーダルが開き、その日の確認と入力ができる（Issue #13）
  */
 
 import { useEffect, useMemo, useState } from 'react'
@@ -83,7 +83,7 @@ export default function App() {
   const [goalYen, setGoalYen] = useState<number>(() => load(GOAL_KEY, 80000))
   const [page, setPage] = useState<Page>('calendar')
   const [menuOpen, setMenuOpen] = useState(false)
-  const [daySheetOpen, setDaySheetOpen] = useState(false)
+  const [dayModalOpen, setDayModalOpen] = useState(false)
   const [errors, setErrors] = useState<string[]>([])
   // 重なり警告を「確認済み」にするための署名（フォーム内容+相手のID）（Issue #9）
   const [overlapAck, setOverlapAck] = useState('')
@@ -152,7 +152,7 @@ export default function App() {
     setForm((f) => ({ ...f, date }))
     setErrors([])
     setOverlapAck('')
-    setDaySheetOpen(true)
+    setDayModalOpen(true)
   }
   const addShift = () => {
     const errs = validateShift(form)
@@ -209,7 +209,7 @@ export default function App() {
           <nav className="drawer" onClick={(e) => e.stopPropagation()}>
             <div className="drawer-head">
               <strong>メニュー</strong>
-              <button className="sheet-close" aria-label="閉じる" onClick={() => setMenuOpen(false)}>×</button>
+              <button className="modal-close" aria-label="閉じる" onClick={() => setMenuOpen(false)}>×</button>
             </div>
             {(Object.keys(PAGE_TITLES) as Page[]).map((p) => (
               <button key={p} className={`drawer-item${page === p ? ' current' : ''}`} onClick={() => goPage(p)}>
@@ -345,22 +345,21 @@ export default function App() {
         </section>
       )}
 
-      {/* ===== Bottom sheet: その日の確認と入力（Issue #10） ===== */}
-      {daySheetOpen && (
-        <div className="sheet-backdrop" onClick={() => setDaySheetOpen(false)}>
-          <div className="sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="sheet-handle" />
-            <div className="sheet-head">
+      {/* ===== モーダル: その日の確認と入力（Issue #13。旧 Bottom sheet） ===== */}
+      {dayModalOpen && (
+        <div className="modal-backdrop" onClick={() => setDayModalOpen(false)}>
+          <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-head">
               <h2>{formatDateLabel(pickedDate)}</h2>
-              <button className="sheet-close" aria-label="閉じる" onClick={() => setDaySheetOpen(false)}>×</button>
+              <button className="modal-close" aria-label="閉じる" onClick={() => setDayModalOpen(false)}>×</button>
             </div>
 
             {pickedRows.length > 0 && (
-              <ul className="sheet-shifts">
+              <ul className="modal-shifts">
                 {pickedRows.map((r) => (
-                  <li key={r.id} className="sheet-shift">
+                  <li key={r.id} className="modal-shift">
                     <span className="wp-dot" style={{ background: workplaceColor(workplaces, r.workplaceId) }} />
-                    <span className="sheet-shift-main">{r.workplaceName} {r.start}–{r.end}<small>実働 {formatMinutes(r.pay.workMinutes)} ・ 休憩{r.breakMinutes}分</small></span>
+                    <span className="modal-shift-main">{r.workplaceName} {r.start}–{r.end}<small>実働 {formatMinutes(r.pay.workMinutes)} ・ 休憩{r.breakMinutes}分</small></span>
                     <strong>{formatYen(r.pay.totalPay)}</strong>
                     <button className="delete-btn" onClick={() => removeShift(r.id)}>削除</button>
                   </li>
@@ -368,7 +367,7 @@ export default function App() {
               </ul>
             )}
 
-            <div className="sheet-form">
+            <div className="modal-form">
               <label className="field">
                 <span>バイト先</span>
                 <select value={wpOf(form).id} onChange={(e) => setForm({ ...form, workplaceId: e.target.value })}>
