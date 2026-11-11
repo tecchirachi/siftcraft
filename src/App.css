@@ -1,14 +1,143 @@
-.app { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; font-family: system-ui, sans-serif; }
-.card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 16px 0; display: grid; gap: 10px; }
-.card label { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
-.card input { padding: 6px 8px; }
-.card button { padding: 8px 14px; cursor: pointer; }
-.shifts { list-style: none; padding: 0; display: grid; gap: 8px; }
-.shifts li { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
-.total { font-weight: 700; font-size: 1.1rem; }
-.preview { color: #555; }
-.goal-bar { height: 12px; border: 1px solid #bbb; border-radius: 999px; overflow: hidden; }
-.goal-fill { height: 100%; background: #4caf7d; transition: width .3s; }
-.errors { color: #c62828; margin: 0; padding-left: 20px; }
-@media (prefers-color-scheme: dark) { .errors { color: #ff8a80; } }
-@media (prefers-color-scheme: dark) { .card { border-color: #444; } .preview { color: #aaa; } }
+/* ShiftCraft デザイン
+方針: スマホアプリとして使う前提のモバイルファースト設計。
+- 色や影は CSS変数にまとめ、ダークモードは変数の差し替えだけで対応する
+- カードは角丸20px + 柔らかい影で「アプリらしい」質感にする
+- タップ領域は最低でも44pxを確保する（Appleのガイドライン） */
+
+:root {
+--bg: #eef1f6;
+--surface: #ffffff;
+--text: #17233b;
+--muted: #68738a;
+--border: #e2e7f0;
+--brand: #4f46e5;
+--brand2: #0ea5a5;
+--danger: #d92d20;
+--shadow: 0 8px 24px rgba(23, 35, 59, 0.08);
+--radius: 20px;
+}
+@media (prefers-color-scheme: dark) {
+:root {
+--bg: #0e1420;
+--surface: #182233;
+--text: #eef2f9;
+--muted: #93a0b6;
+--border: #27334a;
+--shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+}
+
+body { background: var(--bg); color: var(--text);}
+
+.app {
+max-width: 480px; /* スマホ幅に固定し、PCでは中央の1カラムとして見せる */
+margin: 0 auto;
+padding: 16px 16px calc(32px + env(safe-area-inset-bottom));
+display: grid;
+gap: 16px;
+}
+
+/* ヘッダー */
+.app-header { display: flex; align-items: center; gap: 12px;}
+.logo {
+width: 44px; height: 44px; border-radius: 14px; flex: none;
+display: grid; place-items: center;
+background: linear-gradient(135deg, var(--brand), var(--brand2));
+color: #fff; font-weight: 800; font-size: 22px;
+box-shadow: var(--shadow);
+}
+.app-header h1 { font-size: 20px; margin: 0; line-height: 1.2;}
+.app-header p { margin: 0; color: var(--muted); font-size: 13px;}
+.month-select {
+margin-left: auto; min-height: 44px; border-radius: 12px;
+border: 1px solid var(--border); background: var(--surface); color: var(--text);
+padding: 0 10px;
+}
+
+/* ヒーローカード: グラデーション + 大きな金額 */
+.hero {
+border-radius: 24px; padding: 22px; color: #fff;
+background: linear-gradient(135deg, var(--brand) 0%, #7c5ce0 55%, var(--brand2) 130%);
+box-shadow: 0 16px 32px rgba(79, 70, 229, 0.35);
+}
+.hero-label { margin: 0; opacity: 0.85; font-size: 13px;}
+.hero-amount { margin: 4px 0 2px; font-size: 40px; font-weight: 800; letter-spacing: 0.5px;}
+.hero-sub { margin: 0 0 16px; opacity: 0.9; font-size: 14px;}
+.hero-goal-head { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;}
+.hero-goal-note { margin: 8px 0 0; font-size: 13px; opacity: 0.95;}
+.goal-bar { height: 10px; border-radius: 999px; background: rgba(23, 35, 59, 0.12); overflow: hidden;}
+.goal-bar.light { background: rgba(255, 255, 255, 0.3);}
+.goal-fill { height: 100%; background: #22c55e; border-radius: 999px; transition: width 0.4s ease;}
+.goal-bar.light.goal-fill { background: #fff;}
+
+/* カード共通 */
+.card {
+background: var(--surface); border: 1px solid var(--border);
+border-radius: var(--radius); box-shadow: var(--shadow);
+padding: 18px; display: grid; gap: 12px;
+}
+.card h2 { margin: 0; font-size: 17px;}
+.card-head { display: flex; justify-content: space-between; align-items: center;}
+
+/* 入力フォーム: ラベルは小さく上に、入力は大きく */
+.field { display: grid; gap: 6px;}
+.field > span { font-size: 13px; color: var(--muted); font-weight: 600;}
+.field input {
+min-height: 48px; border-radius: 12px; border: 1px solid var(--border);
+background: var(--bg); color: var(--text); padding: 0 12px; width: 100%;
+}
+.field-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 8px;}
+.field-arrow { color: var(--muted); padding-bottom: 12px;}
+.preview { margin: 0; color: var(--muted); font-size: 14px;}
+.preview strong { color: var(--text);}
+
+.primary-btn {
+min-height: 52px; border: none; border-radius: 14px; cursor: pointer;
+background: linear-gradient(135deg, var(--brand), #7c5ce0);
+color: #fff; font-weight: 700; font-size: 16px;
+box-shadow: 0 10px 20px rgba(79, 70, 229, 0.3);
+}
+.primary-btn:active { transform: scale(0.99);}
+.ghost-btn {
+min-height: 40px; padding: 0 14px; border-radius: 999px; cursor: pointer;
+border: 1px solid var(--border); background: transparent; color: var(--text); font-size: 13px;
+}
+.ghost-btn:disabled { opacity: 0.4;}
+.errors { color: var(--danger); margin: 0; padding-left: 20px; font-size: 14px;}
+.empty { color: var(--muted); margin: 0; font-size: 14px;}
+
+/* シフト一覧: 日付バッジ + 情報 + 金額の3段組 */
+.shifts { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px;}
+.shift-item {
+display: flex; gap: 12px; align-items: center;
+border: 1px solid var(--border); border-radius: 16px; padding: 12px;
+background: var(--bg);
+}
+.date-badge {
+flex: none; width: 48px; height: 52px; border-radius: 12px;
+background: var(--surface); border: 1px solid var(--border);
+display: grid; place-items: center; align-content: center;
+}
+.date-day { font-size: 19px; font-weight: 800; line-height: 1;}
+.date-week { font-size: 11px; color: var(--muted);}
+.shift-main { display: grid; gap: 3px; min-width: 0;}
+.shift-time { font-weight: 700; font-size: 15px;}
+.shift-meta { color: var(--muted); font-size: 12px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center;}
+.chip {
+background: rgba(79, 70, 229, 0.12); color: var(--brand);
+border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 700;
+}
+.chip.night { background: rgba(14, 165, 165, 0.14); color: var(--brand2);}
+.shift-side { margin-left: auto; display: grid; justify-items: end; gap: 4px;}
+.shift-pay { font-weight: 800; font-size: 16px; white-space: nowrap;}
+.delete-btn {
+border: none; background: none; color: var(--danger);
+font-size: 12px; cursor: pointer; padding: 4px 2px; min-height: 28px;
+}
+
+/* 設定（折りたたみ） */
+.settings summary { cursor: pointer; font-weight: 700; font-size: 16px; min-height: 28px;}
+.settings[open] { gap: 12px;}
+.settings label { margin-top: 10px;}
+
+.app-footer { text-align: center; color: var(--muted); font-size: 12px;}
