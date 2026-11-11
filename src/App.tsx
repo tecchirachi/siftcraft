@@ -21,6 +21,9 @@ import { calculatePay, formatMinutes, formatYen, type PaySettings, type ShiftInp
 import { filterByMonth, listMonths } from './lib/filter'
 // 目標金額シミュレーションのロジック（Issue #3）
 import { goalProgress } from './lib/goal'
+// CSV生成（Issue #4）と入力検証（Issue #5）
+import { shiftsToCsv } from './lib/csv'
+import { validateShift } from './lib/validate'
 
 /** 保存・一覧表示に使う「ID付きのシフト」。ShiftInput に id を足した型 */
 interface ShiftRecord extends ShiftInput {
@@ -61,6 +64,8 @@ const [shifts, setShifts] = useState<ShiftRecord[]>(() => load(SHIFTS_KEY, []))
 const [selectedMonth, setSelectedMonth] = useState('')
 // 目標金額（円）。設定と同じく localStorage に保存する（Issue #3）
 const [goalYen, setGoalYen] = useState<number>(() => load(GOAL_KEY, 80000))
+// バリデーションのエラー表示用（空ならエラーなし）
+const [errors, setErrors] = useState<string[]>([])
 
 // 入力フォームの状態。入力のたびにこのオブジェクトを更新する
 const [form, setForm] = useState<ShiftInput>({
@@ -104,8 +109,25 @@ const goal = goalProgress(total, goalYen, settings.hourlyWage)
 // 配列の追加は [...prev, 新要素] のように新しい配列を作るのがReact流。
 // ------------------------------------------------------------
 const addShift = () => {
+// 追加する前に検証し、問題があれば追加せずエラーを表示する（Issue #5）
+const errs = validateShift(form)
+setErrors(errs)
+if (errs.length > 0) return
 // crypto.randomUUID() で重ならないIDを発行し、一覧の key や削除に使う
 setShifts((prev) => [...prev, {...form, id: crypto.randomUUID()}])
+}
+
+// 表示中（月フィルタ後）の一覧をCSVでダウンロードする（Issue #4）
+// やっていること: CSV文字列 → Blob（ファイルの元）→ 一時URL → 見えないリンクをクリック
+const downloadCsv = () => {
+const csv = shiftsToCsv(rows.map((r) => ({ shift: r.shift, pay: r.pay})))
+const blob = new Blob([csv], { type: 'text/csv;charset=utf-8'})
+const url = URL.createObjectURL(blob)
+const a = document.createElement('a')
+a.href = url
+a.download = selectedMonth? `shiftcraft-${selectedMonth}.csv`: 'shiftcraft-all.csv'
+a.click()
+URL.revokeObjectURL(url) // 一時URLは使い終わったら解放する
 }
 const removeShift = (id: string) => setShifts((prev) => prev.filter((s) => s.id!== id))
 
@@ -153,6 +175,11 @@ onChange={(e) => setSettings({...settings, transportPerShift: Number(e.target.va
 <input type="number" value={form.breakMinutes} onChange={(e) => setForm({...form, breakMinutes: Number(e.target.value)})} />
 </label>
 <button onClick={addShift}>追加する</button>
+{errors.length > 0 && (
+<ul className="errors">
+{errors.map((e) => (<li key={e}>{e}</li>))}
+</ul>
+)}
 {/* 入力中の内容で即座に計算し、追加前に見込み額を見せる */}
 {(() => {
 const preview = calculatePay(form, settings)
@@ -188,6 +215,7 @@ return <p className="preview">このシフトの見込み: 実働 {formatMinutes
 </ul>
 )}
 <p className="total">{selectedMonth? `${selectedMonth.replace('-', '年')}月の合計`: '全期間の合計'}: {formatMinutes(totalMinutes)} / {formatYen(total)}（{rows.length}件）</p>
+<button onClick={downloadCsv} disabled={rows.length === 0}>表示中の一覧をCSVでダウンロード</button>
 </section>
 
 <section className="card">
