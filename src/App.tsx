@@ -5,11 +5,12 @@
  * 給料計算は src/lib/pay.ts などに切り離してあるので、ここは
  * 「データを集めて lib に渡し、結果を表示する」だけ。
  *
- * UI設計（スマホアプリとして使う前提）(Issue #10 で再構成):
- * - メイン画面は「サマリー＋カレンダー」だけにして縦長にしない
+ * UI設計（スマホアプリとして使う前提）(Issue #12 で1画面化):
+ * - メイン（カレンダーページ）はスマホ1画面に収める: ヘッダー、月の
+ *   サマリー1行、月移動、カレンダーだけ。画面の高さいっぱいに広げる
+ * - 集計・バイト先・設定は別ページにし、ハンバーガーメニュー
+ *   （ドロワー）から移動する。ルーターは入れず state で切り替える
  * - 日付タップで Bottom sheet が開き、その日の確認と入力ができる
- * - 設定も Bottom sheet で開く（低頻度の操作を常設しない）
- * - 合計はカレンダーで表示中の月に連動する
  */
 
 import { useEffect, useMemo, useState } from 'react'
@@ -60,8 +61,14 @@ function formatDateLabel(date: string): string {
   return `${d.getMonth() + 1}月${d.getDate()}日（${d.toLocaleDateString('ja-JP', { weekday: 'short' })}）`
 }
 
-/** 開いているシートの種類。null は閉じている状態 */
-type SheetKind = 'day' | 'settings' | null
+/** 表示中のページ。ルーターなしで state 切り替えする（Issue #12） */
+type Page = 'calendar' | 'summary' | 'workplaces' | 'settings'
+const PAGE_TITLES: Record<Page, string> = {
+  calendar: 'カレンダー',
+  summary: '集計',
+  workplaces: 'バイト先',
+  settings: '設定',
+}
 
 export default function App() {
   // ---- 状態（state） ----
@@ -74,6 +81,9 @@ export default function App() {
   )
   const [shifts, setShifts] = useState<ShiftRecord[]>(() => load(SHIFTS_KEY, []))
   const [goalYen, setGoalYen] = useState<number>(() => load(GOAL_KEY, 80000))
+  const [page, setPage] = useState<Page>('calendar')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [daySheetOpen, setDaySheetOpen] = useState(false)
   const [errors, setErrors] = useState<string[]>([])
   // 重なり警告を「確認済み」にするための署名（フォーム内容+相手のID）（Issue #9）
   const [overlapAck, setOverlapAck] = useState('')
@@ -81,7 +91,6 @@ export default function App() {
   const now = new Date()
   const [viewYM, setViewYM] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 })
   const [pickedDate, setPickedDate] = useState(now.toISOString().slice(0, 10))
-  const [sheet, setSheet] = useState<SheetKind>(null)
   const [form, setForm] = useState<ShiftForm>({
     date: new Date().toISOString().slice(0, 10),
     start: '09:00',
@@ -134,12 +143,16 @@ export default function App() {
   const memoSuggestions = uniqueSuggestions(workplaces.map((w) => w.memo))
 
   // ---- 操作 ----
+  const goPage = (p: Page) => {
+    setPage(p)
+    setMenuOpen(false)
+  }
   const openDay = (date: string) => {
     setPickedDate(date)
     setForm((f) => ({ ...f, date }))
     setErrors([])
     setOverlapAck('')
-    setSheet('day')
+    setDaySheetOpen(true)
   }
   const addShift = () => {
     const errs = validateShift(form)
@@ -174,89 +187,172 @@ export default function App() {
 
   // ---- 画面 ----
   return (
-    <main className="app">
+    <main className={page === 'calendar' ? 'app app-main' : 'app'}>
+      {/* ヘッダー: アプリ名とハンバーガーボタンは全ページ共通 */}
       <header className="app-header">
+        <button className="menu-btn" aria-label="メニューを開く" onClick={() => setMenuOpen(true)}>
+          <span /><span /><span />
+        </button>
         <div className="logo">S</div>
         <div>
-          <h1>ShiftCraft</h1>
-          <p>シフトと給料の見込み</p>
+          <h1>{page === 'calendar' ? 'ShiftCraft' : PAGE_TITLES[page]}</h1>
+          <p>{page === 'calendar' ? 'シフトと給料の見込み' : 'ShiftCraft'}</p>
         </div>
-        <button className="ghost-btn header-settings" onClick={() => setSheet('settings')}>設定</button>
+        {page !== 'calendar' && (
+          <button className="ghost-btn back-btn" onClick={() => goPage('calendar')}>‹ カレンダーへ</button>
+        )}
       </header>
 
-      {/* サマリー: 表示中の月の見込みと目標だけをコンパクトに */}
-      <section className="hero compact">
-        <p className="hero-label">{viewYM.year}年{viewYM.month}月の見込み給料</p>
-        <p className="hero-amount">{formatYen(total)}</p>
-        <p className="hero-sub">実働 {formatMinutes(totalMinutes)} ・ {rows.length}件のシフト</p>
-        <div className="hero-goal">
-          <div className="hero-goal-head">
-            <span>目標 {formatYen(goalYen)}</span>
-            <span>{goal.progressPercent}%</span>
-          </div>
-          <div className="goal-bar"><div className="goal-fill" style={{ width: `${goal.progressPercent}%` }} /></div>
-          <p className="hero-goal-note">
-            {goal.achieved
-              ? '目標達成です。お疲れさまでした。'
-              : `あと ${formatYen(goal.remainingYen)}${goal.remainingMinutes !== null ? `（約 ${formatMinutes(goal.remainingMinutes)}）` : ''}`}
-          </p>
-        </div>
-      </section>
-
-      {/* メイン: カレンダー（Issue #6 / #10） */}
-      <section className="card">
-        <div className="card-head">
-          <button className="nav-btn" aria-label="前の月" onClick={() => setViewYM((v) => shiftMonth(v.year, v.month, -1))}>‹</button>
-          <h2>{viewYM.year}年{viewYM.month}月</h2>
-          <button className="nav-btn" aria-label="次の月" onClick={() => setViewYM((v) => shiftMonth(v.year, v.month, 1))}>›</button>
-        </div>
-        <div className="cal-week">
-          {['日', '月', '火', '水', '木', '金', '土'].map((w, i) => (<span key={w} className={i === 0 ? 'sun' : i === 6 ? 'sat' : ''}>{w}</span>))}
-        </div>
-        <div className="cal-grid">
-          {calGrid.map((cell, i) =>
-            cell === null ? (
-              <span key={i} />
-            ) : (
-              <button
-                key={cell.date}
-                className={`cal-cell${cell.date === todayStr ? ' today' : ''}`}
-                onClick={() => openDay(cell.date)}
-              >
-                <span className="cal-day">{cell.day}</span>
-                {(() => {
-                  const dayRows = calByDate.get(cell.date)
-                  if (!dayRows) return null
-                  const sum = dayRows.reduce((a, r) => a + r.pay.totalPay, 0)
-                  const colors = [...new Set(dayRows.map((r) => workplaceColor(workplaces, r.workplaceId)))]
-                  return (<><span className="cal-dots">{colors.map((c) => (<span key={c} className="cal-dot" style={{ background: c }} />))}</span><span className="cal-yen">{formatYen(sum)}</span></>)
-                })()}
+      {/* ===== ハンバーガーメニュー（ドロワー） ===== */}
+      {menuOpen && (
+        <div className="drawer-backdrop" onClick={() => setMenuOpen(false)}>
+          <nav className="drawer" onClick={(e) => e.stopPropagation()}>
+            <div className="drawer-head">
+              <strong>メニュー</strong>
+              <button className="sheet-close" aria-label="閉じる" onClick={() => setMenuOpen(false)}>×</button>
+            </div>
+            {(Object.keys(PAGE_TITLES) as Page[]).map((p) => (
+              <button key={p} className={`drawer-item${page === p ? ' current' : ''}`} onClick={() => goPage(p)}>
+                {PAGE_TITLES[p]}
               </button>
-            ),
-          )}
-        </div>
-        <p className="cal-hint">日付をタップすると、その日のシフト確認と入力ができます</p>
-        {wpTotals.length > 0 && (
-          <div className="wp-totals">
-            <span className="wp-totals-title">バイト先別の合計（{viewYM.month}月）</span>
-            {wpTotals.map((t) => (
-              <span key={t.workplace.id} className="wp-total-line"><span className="wp-dot" style={{ background: workplaceColor(workplaces, t.workplace.id) }} />{t.workplace.name}: {formatYen(t.totalPay)}（{t.count}件・{formatMinutes(t.workMinutes)}）</span>
             ))}
-          </div>
-        )}
-        <button className="ghost-btn" onClick={downloadCsv} disabled={rows.length === 0}>{viewYM.month}月のCSVで保存</button>
-      </section>
+            <p className="drawer-note">データはこの端末の中だけに保存されます</p>
+          </nav>
+        </div>
+      )}
 
-      <footer className="app-footer">データはこの端末の中だけに保存されます</footer>
+      {/* ===== ページ: カレンダー（メイン・1画面） ===== */}
+      {page === 'calendar' && (
+        <>
+          {/* 今月のサマリーは1行だけ（詳細は集計ページへ） */}
+          <div className="summary-line">
+            <span>{viewYM.month}月の見込み <strong>{formatYen(total)}</strong></span>
+            <span className="summary-goal">目標 {goal.progressPercent}%</span>
+          </div>
+          <div className="goal-bar mini"><div className="goal-fill" style={{ width: `${goal.progressPercent}%` }} /></div>
+
+          <section className="card cal-card">
+            <div className="card-head">
+              <button className="nav-btn" aria-label="前の月" onClick={() => setViewYM((v) => shiftMonth(v.year, v.month, -1))}>‹</button>
+              <h2>{viewYM.year}年{viewYM.month}月</h2>
+              <button className="nav-btn" aria-label="次の月" onClick={() => setViewYM((v) => shiftMonth(v.year, v.month, 1))}>›</button>
+            </div>
+            <div className="cal-week">
+              {['日', '月', '火', '水', '木', '金', '土'].map((w, i) => (<span key={w} className={i === 0 ? 'sun' : i === 6 ? 'sat' : ''}>{w}</span>))}
+            </div>
+            <div className="cal-grid fill">
+              {calGrid.map((cell, i) =>
+                cell === null ? (
+                  <span key={i} />
+                ) : (
+                  <button
+                    key={cell.date}
+                    className={`cal-cell${cell.date === todayStr ? ' today' : ''}`}
+                    onClick={() => openDay(cell.date)}
+                  >
+                    <span className="cal-day">{cell.day}</span>
+                    {(() => {
+                      const dayRows = calByDate.get(cell.date)
+                      if (!dayRows) return null
+                      const sum = dayRows.reduce((a, r) => a + r.pay.totalPay, 0)
+                      const colors = [...new Set(dayRows.map((r) => workplaceColor(workplaces, r.workplaceId)))]
+                      return (<><span className="cal-dots">{colors.map((c) => (<span key={c} className="cal-dot" style={{ background: c }} />))}</span><span className="cal-yen">{formatYen(sum)}</span></>)
+                    })()}
+                  </button>
+                ),
+              )}
+            </div>
+          </section>
+        </>
+      )}
+
+      {/* ===== ページ: 集計 ===== */}
+      {page === 'summary' && (
+        <section className="card page-card">
+          <h2>{viewYM.year}年{viewYM.month}月の集計</h2>
+          <p className="page-total">{formatYen(total)}</p>
+          <p className="page-sub">実働 {formatMinutes(totalMinutes)} ・ {rows.length}件のシフト</p>
+          <div className="hero-goal">
+            <div className="hero-goal-head">
+              <span>目標 {formatYen(goalYen)}</span>
+              <span>{goal.progressPercent}%</span>
+            </div>
+            <div className="goal-bar"><div className="goal-fill" style={{ width: `${goal.progressPercent}%` }} /></div>
+            <p className="hero-goal-note">
+              {goal.achieved
+                ? '目標達成です。お疲れさまでした。'
+                : `あと ${formatYen(goal.remainingYen)}${goal.remainingMinutes !== null ? `（約 ${formatMinutes(goal.remainingMinutes)}）` : ''}`}
+            </p>
+          </div>
+          {wpTotals.length > 0 && (
+            <div className="wp-totals">
+              <span className="wp-totals-title">バイト先別の合計</span>
+              {wpTotals.map((t) => (
+                <span key={t.workplace.id} className="wp-total-line"><span className="wp-dot" style={{ background: workplaceColor(workplaces, t.workplace.id) }} />{t.workplace.name}: {formatYen(t.totalPay)}（{t.count}件・{formatMinutes(t.workMinutes)}）</span>
+              ))}
+            </div>
+          )}
+          <button className="ghost-btn" onClick={downloadCsv} disabled={rows.length === 0}>{viewYM.month}月のCSVで保存</button>
+          <p className="page-note">集計はカレンダーで表示中の月に連動します。月を変えるときはカレンダーページで月移動してください。</p>
+        </section>
+      )}
+
+      {/* ===== ページ: バイト先 ===== */}
+      {page === 'workplaces' && (
+        <section className="card page-card">
+          <h2>バイト先の管理</h2>
+          {workplaces.map((w) => (
+            <div key={w.id} className="wp-editor" style={{ borderLeft: `6px solid ${workplaceColor(workplaces, w.id)}` }}>
+              <label className="field">
+                <span>バイト先の名前</span>
+                <input type="text" list="dl-names" value={w.name} onChange={(e) => updateWorkplace(w.id, { name: e.target.value })} />
+              </label>
+              <div className="field-row-2">
+                <label className="field">
+                  <span>時給（円）</span>
+                  <input type="number" inputMode="numeric" value={w.hourlyWage} onChange={(e) => updateWorkplace(w.id, { hourlyWage: Number(e.target.value) })} />
+                </label>
+                <label className="field">
+                  <span>交通費 / 1勤務（円）</span>
+                  <input type="number" inputMode="numeric" value={w.transportPerShift} onChange={(e) => updateWorkplace(w.id, { transportPerShift: Number(e.target.value) })} />
+                </label>
+              </div>
+              <label className="field">
+                <span>場所（任意）</span>
+                <input type="text" list="dl-places" value={w.place ?? ''} placeholder="例: 駅前" onChange={(e) => updateWorkplace(w.id, { place: e.target.value })} />
+              </label>
+              <label className="field">
+                <span>メモ（任意）</span>
+                <input type="text" list="dl-memos" value={w.memo ?? ''} placeholder="例: シフト提出は毎月15日まで" onChange={(e) => updateWorkplace(w.id, { memo: e.target.value })} />
+              </label>
+              {workplaces.length > 1 && (<button className="delete-btn" onClick={() => removeWorkplace(w.id)}>このバイト先を削除</button>)}
+            </div>
+          ))}
+          <button className="ghost-btn" onClick={addWorkplace}>＋ バイト先を追加</button>
+        </section>
+      )}
+
+      {/* ===== ページ: 設定 ===== */}
+      {page === 'settings' && (
+        <section className="card page-card">
+          <h2>設定</h2>
+          <label className="field">
+            <span>目標金額（円）</span>
+            <input type="number" inputMode="numeric" value={goalYen} onChange={(e) => setGoalYen(Number(e.target.value))} />
+          </label>
+          <p className="page-note">目標はカレンダー上部の進捗と、集計ページの詳細に使われます。</p>
+          <p className="page-note">データはこの端末のブラウザの中だけに保存されます。サーバーには送信されません。</p>
+        </section>
+      )}
 
       {/* ===== Bottom sheet: その日の確認と入力（Issue #10） ===== */}
-      {sheet === 'day' && (
-        <div className="sheet-backdrop" onClick={() => setSheet(null)}>
+      {daySheetOpen && (
+        <div className="sheet-backdrop" onClick={() => setDaySheetOpen(false)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-handle" />
             <div className="sheet-head">
               <h2>{formatDateLabel(pickedDate)}</h2>
-              <button className="sheet-close" aria-label="閉じる" onClick={() => setSheet(null)}>×</button>
+              <button className="sheet-close" aria-label="閉じる" onClick={() => setDaySheetOpen(false)}>×</button>
             </div>
 
             {pickedRows.length > 0 && (
@@ -321,51 +417,6 @@ export default function App() {
               )}
               <button className="primary-btn" onClick={addShift}>＋ この日に追加</button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===== Bottom sheet: 設定（Issue #10） ===== */}
-      {sheet === 'settings' && (
-        <div className="sheet-backdrop" onClick={() => setSheet(null)}>
-          <div className="sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="sheet-handle" />
-            <div className="sheet-head">
-              <h2>バイト先と目標の設定</h2>
-              <button className="sheet-close" aria-label="閉じる" onClick={() => setSheet(null)}>×</button>
-            </div>
-            {workplaces.map((w) => (
-              <div key={w.id} className="wp-editor" style={{ borderLeft: `6px solid ${workplaceColor(workplaces, w.id)}` }}>
-                <label className="field">
-                  <span>バイト先の名前</span>
-                  <input type="text" list="dl-names" value={w.name} onChange={(e) => updateWorkplace(w.id, { name: e.target.value })} />
-                </label>
-                <div className="field-row-2">
-                  <label className="field">
-                    <span>時給（円）</span>
-                    <input type="number" inputMode="numeric" value={w.hourlyWage} onChange={(e) => updateWorkplace(w.id, { hourlyWage: Number(e.target.value) })} />
-                  </label>
-                  <label className="field">
-                    <span>交通費 / 1勤務（円）</span>
-                    <input type="number" inputMode="numeric" value={w.transportPerShift} onChange={(e) => updateWorkplace(w.id, { transportPerShift: Number(e.target.value) })} />
-                  </label>
-                </div>
-                <label className="field">
-                  <span>場所（任意）</span>
-                  <input type="text" list="dl-places" value={w.place ?? ''} placeholder="例: 駅前" onChange={(e) => updateWorkplace(w.id, { place: e.target.value })} />
-                </label>
-                <label className="field">
-                  <span>メモ（任意）</span>
-                  <input type="text" list="dl-memos" value={w.memo ?? ''} placeholder="例: シフト提出は毎月15日まで" onChange={(e) => updateWorkplace(w.id, { memo: e.target.value })} />
-                </label>
-                {workplaces.length > 1 && (<button className="delete-btn" onClick={() => removeWorkplace(w.id)}>このバイト先を削除</button>)}
-              </div>
-            ))}
-            <button className="ghost-btn" onClick={addWorkplace}>＋ バイト先を追加</button>
-            <label className="field">
-              <span>目標金額（円）</span>
-              <input type="number" inputMode="numeric" value={goalYen} onChange={(e) => setGoalYen(Number(e.target.value))} />
-            </label>
           </div>
         </div>
       )}

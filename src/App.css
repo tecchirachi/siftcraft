@@ -257,3 +257,48 @@ font-size: 13px; cursor: pointer; padding: 4px 2px; min-height: 28px;
   border: 1px solid var(--brand); background: rgba(255, 158, 110, 0.14);
   color: var(--text); font-size: 14px; font-weight: 700;
 }
+
+/* 1画面レイアウトとドロワー、別ページ（Issue #12） */
+.app-main {
+  height: 100dvh; display: flex; flex-direction: column; gap: 10px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom)); overflow: hidden;
+}
+.menu-btn {
+  width: 44px; height: 44px; border-radius: 14px; flex: none; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface);
+  display: grid; place-content: center; gap: 5px;
+}
+.menu-btn span { display: block; width: 20px; height: 2px; border-radius: 2px; background: var(--text); }
+.back-btn { margin-left: auto; }
+.summary-line {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 16px; padding: 0 4px;
+}
+.summary-line strong { font-size: 22px; }
+.summary-goal { color: var(--muted); font-size: 14px; font-weight: 700; }
+.goal-bar.mini { height: 8px; margin: 0 4px; }
+.cal-card { flex: 1; display: flex; flex-direction: column; min-height: 0; margin: 0; }
+.cal-grid.fill { flex: 1; grid-auto-rows: 1fr; min-height: 0; }
+.cal-grid.fill .cal-cell { min-height: 0; height: 100%; }
+.page-card { display: grid; gap: 14px; align-content: start; }
+.page-total { margin: 0; font-size: 40px; font-weight: 800; line-height: 1.1; }
+.page-sub { margin: 0; color: var(--muted); font-size: 15px; }
+.page-note { margin: 0; color: var(--muted); font-size: 14px; }
+.drawer-backdrop {
+  position: fixed; inset: 0; background: rgba(62, 52, 42, 0.45); z-index: 60;
+}
+.drawer {
+  position: absolute; top: 0; left: 0; bottom: 0; width: 78%; max-width: 300px;
+  background: var(--surface); color: var(--text); padding: 18px;
+  display: flex; flex-direction: column; gap: 8px;
+  animation: drawer-in 0.22s ease-out;
+}
+@keyframes drawer-in { from { transform: translateX(-40px); opacity: 0.4; } to { transform: translateX(0); opacity: 1; } }
+.drawer-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 18px; }
+.drawer-item {
+  min-height: 52px; border: 1px solid var(--border); border-radius: 14px;
+  background: var(--bg); color: var(--text); font-size: 17px; font-weight: 700;
+  text-align: left; padding: 0 16px; cursor: pointer;
+}
+.drawer-item.current { border-color: var(--brand); background: rgba(255, 158, 110, 0.14); }
+.drawer-note { margin-top: auto; color: var(--muted); font-size: 13px; }
