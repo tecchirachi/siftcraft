@@ -1,13 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="120" fill="#fff1dc"/>
-  <path d="M256 108 C256 88 256 76 256 66" stroke="#5da271" stroke-width="14" fill="none" stroke-linecap="round"/>
-  <path d="M256 112 C206 112 188 74 188 56 C232 56 256 82 256 112 Z" fill="#7bc47f"/>
-  <path d="M256 112 C306 112 324 74 324 56 C280 56 256 82 256 112 Z" fill="#93d198"/>
-  <circle cx="256" cy="300" r="168" fill="#ffe7c2"/>
-  <ellipse cx="256" cy="352" rx="88" ry="56" fill="#fff4e0"/>
-  <circle cx="148" cy="330" r="30" fill="#ffb59e" opacity="0.8"/>
-  <circle cx="364" cy="330" r="30" fill="#ffb59e" opacity="0.8"/>
-  <circle cx="196" cy="292" r="16" fill="#4a4038"/>
-  <circle cx="316" cy="292" r="16" fill="#4a4038"/>
-  <path d="M232 330 q24 22 48 0" stroke="#4a4038" stroke-width="13" fill="none" stroke-linecap="round"/>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffb287"/>
+      <stop offset="1" stop-color="#ff9e6e"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#g)"/>
+  <text x="256" y="272" font-family="Arial, sans-serif" font-size="300" font-weight="bold" fill="#ffffff" text-anchor="middle" dominant-baseline="central">S</text>
 </svg>

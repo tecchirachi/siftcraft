@@ -2,7 +2,7 @@
 世界観: 「やさしく、たのしく貯める」。
 - 色はクリーム・ピーチ・ミントの温かいパステルに寄せ、
 角丸を大きめにして、全体を柔らかい印象にしている
-- マスコット「まるまる」は目標の進捗で頭の芽が育つ（lib/mascot.ts）
+- 色や影はCSS変数にまとめ、ダークモードは変数の差し替えだけで対応する
 - ダークモードでも変数の差し替えで同じ温度感を保つ */
 
 :root {
@@ -47,7 +47,7 @@ gap: 16px;
 .logo {
 width: 44px; height: 44px; border-radius: 16px; flex: none;
 display: grid; place-items: center; font-size: 22px;
-background: #ffe7c2; box-shadow: var(--shadow);
+background: linear-gradient(135deg, #ffb287, #ff9e6e); color: #fff; font-weight: 800; box-shadow: var(--shadow);
 }
 .app-header h1 { font-size: 20px; margin: 0; line-height: 1.2;}
 .app-header p { margin: 0; color: var(--muted); font-size: 13px;}
@@ -68,24 +68,6 @@ color: var(--text);
 @media (prefers-color-scheme: dark) {
 .hero { background: linear-gradient(160deg, #3d2f24 0%, #33291f 55%, #22352a 130%);}
 }
-.hero-top { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 10px;}
-.mascot { width: 104px; height: 104px; flex: none; animation: bob 2.6s ease-in-out infinite;}
-/* ゆらゆら浮くアニメーション。動きは小さく、優しく */
-@keyframes bob { 0%, 100% { transform: translateY(0);} 50% { transform: translateY(-5px);}}
-.bubble {
-position: relative; flex: 1;
-background: var(--surface); border: 1px solid var(--border);
-border-radius: 18px; padding: 10px 14px; margin-top: 10px;
-}
-/* 吹き出しの三角（左向き） */
-.bubble::after {
-content: ''; position: absolute; left: -7px; top: 26px;
-width: 12px; height: 12px; background: var(--surface);
-border-left: 1px solid var(--border); border-bottom: 1px solid var(--border);
-transform: rotate(45deg);
-}
-.bubble-stage { margin: 0; font-size: 12px; color: var(--brand2); font-weight: 800;}
-.bubble-text { margin: 3px 0 0; font-size: 14px; line-height: 1.5;}
 .hero-label { margin: 6px 0 0; color: var(--muted); font-size: 13px;}
 .hero-amount { margin: 2px 0; font-size: 38px; font-weight: 800; letter-spacing: 0.5px;}
 .hero-sub { margin: 0 0 14px; color: var(--muted); font-size: 14px;}
@@ -170,4 +152,3 @@ font-size: 12px; cursor: pointer; padding: 4px 2px; min-height: 28px;
 .app-footer { text-align: center; color: var(--muted); font-size: 12px;}
 
 /* ヘッダーのロゴ内ではマスコットを小さく静止表示する */
-.logo .mascot { width: 32px; height: 32px; animation: none; }
