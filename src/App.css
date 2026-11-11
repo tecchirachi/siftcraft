@@ -308,3 +308,21 @@ font-size: 13px; cursor: pointer; padding: 4px 2px; min-height: 28px;
 .modal-details { border-top: 1px dashed var(--border); padding-top: 8px; }
 .modal-details summary { font-size: 14px; font-weight: 700; color: var(--muted); cursor: pointer; padding: 4px 0; }
 .modal-details .field { margin-top: 8px; }
+
+/* 照合・給料日・登録結果（Issue #15, #16, #17） */
+.check-block { display: grid; gap: 10px; border-top: 1px dashed var(--border); padding-top: 14px; }
+.check-row { display: grid; gap: 4px; }
+.check-name { font-weight: 700; font-size: 16px; }
+.check-expected { color: var(--muted); font-size: 14px; }
+.check-row input {
+  min-height: 46px; border-radius: 12px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); padding: 0 12px; font-size: 16px; width: 100%;
+}
+.check-diff { font-size: 14px; font-weight: 700; color: var(--muted); }
+.check-diff.match { color: #2f7d58; }
+.check-diff.over { color: #4176c4; }
+.check-diff.under { color: var(--danger); }
+.ok-note {
+  margin: 0; font-size: 14px; font-weight: 700; color: #2f7d58;
+  background: rgba(123, 200, 164, 0.18); border-radius: 12px; padding: 8px 12px;
+}

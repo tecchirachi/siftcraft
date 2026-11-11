@@ -22,6 +22,10 @@ transportPerShift: number
 place?: string
 /** メモ（任意） */
 memo?: string
+/** 締め日（1〜31、31=月末）。未設定なら月末締めとして扱う（Issue #17） */
+closingDay?: number
+/** 給料日（締め日の翌月のこの日、31=月末）。未設定なら25日（Issue #17） */
+payDay?: number
 }
 
 /** 移行で作るデフォルトのバイト先のID */

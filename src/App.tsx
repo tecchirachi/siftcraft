@@ -27,6 +27,10 @@ import { migrateWorkplaces, resolveWorkplace, summarizeByWorkplace, workplaceCol
 import { findOverlaps } from './lib/overlap'
 // 入力候補（オートコンプリート）（Issue #11）
 import { frequentPatterns, uniqueSuggestions } from './lib/suggest'
+// 明細照合・繰り返し登録・支給期間（Issue #15, #16, #17）
+import { comparePay } from './lib/check'
+import { weeklyDates } from './lib/repeat'
+import { periodFor } from './lib/payperiod'
 
 /** フォームとシフト共通の形: 入力項目 + 選んだバイト先のID */
 interface ShiftForm extends ShiftInput {
@@ -40,6 +44,14 @@ const SHIFTS_KEY = 'shiftcraft:shifts'
 const SETTINGS_KEY = 'shiftcraft:settings'
 const GOAL_KEY = 'shiftcraft:goal'
 const WORKPLACES_KEY = 'shiftcraft:workplaces'
+const ACTUALS_KEY = 'shiftcraft:actuals'
+
+/** 実績（明細の支給額）: バイト先ID×対象月 → 金額 */
+interface ActualRecord {
+  workplaceId: string
+  yearMonth: string // "2026-11"
+  amount: number
+}
 
 /** localStorage から JSON を読み込む（壊れていたら初期値を使う） */
 function load<T>(key: string, fallback: T): T {
@@ -81,6 +93,10 @@ export default function App() {
   )
   const [shifts, setShifts] = useState<ShiftRecord[]>(() => load(SHIFTS_KEY, []))
   const [goalYen, setGoalYen] = useState<number>(() => load(GOAL_KEY, 80000))
+const [actuals, setActuals] = useState<ActualRecord[]>(() => load(ACTUALS_KEY, []))
+// 繰り返し登録の回数と、直近の登録結果メッセージ（Issue #16）
+const [repeatCount, setRepeatCount] = useState(1)
+const [repeatNote, setRepeatNote] = useState('')
   const [page, setPage] = useState<Page>('calendar')
   const [menuOpen, setMenuOpen] = useState(false)
   const [dayModalOpen, setDayModalOpen] = useState(false)
@@ -103,6 +119,7 @@ export default function App() {
   useEffect(() => localStorage.setItem(WORKPLACES_KEY, JSON.stringify(workplaces)), [workplaces])
   useEffect(() => localStorage.setItem(SHIFTS_KEY, JSON.stringify(shifts)), [shifts])
   useEffect(() => localStorage.setItem(GOAL_KEY, JSON.stringify(goalYen)), [goalYen])
+useEffect(() => localStorage.setItem(ACTUALS_KEY, JSON.stringify(actuals)), [actuals])
 
   // ---- 派生データ ----
   // シフトのバイト先を解決し、そのバイト先の時給・交通費で計算するためのヘルパー
@@ -158,15 +175,41 @@ export default function App() {
     const errs = validateShift(form)
     setErrors(errs)
     if (errs.length > 0) return
-    // 時間が重なる場合はまず警告だけ出して止め、同じ内容でもう一度押されたら登録する
-    if (formOverlaps.length > 0 && overlapAck !== overlapSig) {
-      setOverlapAck(overlapSig)
+    setRepeatNote('')
+    if (repeatCount <= 1) {
+      // 通常登録: 時間が重なる場合はまず警告だけ出して止め、同じ内容でもう一度押されたら登録する
+      if (formOverlaps.length > 0 && overlapAck !== overlapSig) {
+        setOverlapAck(overlapSig)
+        return
+      }
+      setOverlapAck('')
+      setShifts((prev) => [...prev, { ...form, id: crypto.randomUUID() }])
       return
     }
-    setOverlapAck('')
-    setShifts((prev) => [...prev, { ...form, id: crypto.randomUUID() }])
+    // 繰り返し登録（Issue #16）: 同じ曜日に週ごと。重なる回はスキップして結果を知らせる
+    const dates = weeklyDates(form.date, repeatCount)
+    const added: ShiftRecord[] = []
+    let skipped = 0
+    for (const date of dates) {
+      const candidate = { ...form, date }
+      if (findOverlaps(candidate, [...shifts, ...added]).length > 0) {
+        skipped += 1
+      } else {
+        added.push({ ...candidate, id: crypto.randomUUID() })
+      }
+    }
+    setShifts((prev) => [...prev, ...added])
+    setRepeatNote(`${added.length}件を追加しました${skipped > 0 ? `（重なりのため ${skipped}件スキップ）` : ''}`)
   }
   const removeShift = (id: string) => setShifts((prev) => prev.filter((s) => s.id !== id))
+// 実績の入力: 同じバイト先×月は上書き、空欄にしたら記録を消す
+const setActual = (workplaceId: string, amount: number | null) =>
+setActuals((prev) => {
+const rest = prev.filter((a) =>!(a.workplaceId === workplaceId && a.yearMonth === monthKey))
+return amount === null? rest: [...rest, { workplaceId, yearMonth: monthKey, amount }]
+})
+const actualOf = (workplaceId: string) =>
+actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.amount
   // バイト先の追加・更新・削除（削除されたバイト先のシフトは先頭に寄せられる）
   const addWorkplace = () =>
     setWorkplaces((prev) => [...prev, { id: crypto.randomUUID(), name: `バイト先${prev.length + 1}`, hourlyWage: 1200, transportPerShift: 0 }])
@@ -292,6 +335,51 @@ export default function App() {
               ))}
             </div>
           )}
+          {/* 明細との照合（Issue #15）: 実績を入れると見込みとの差額が出る */}
+          {wpTotals.length > 0 && (
+            <div className="check-block">
+              <span className="wp-totals-title">給料明細との照合（{viewYM.month}月分）</span>
+              {wpTotals.map((t) => {
+                const actual = actualOf(t.workplace.id)
+                const result = comparePay(t.totalPay, actual)
+                return (
+                  <div key={t.workplace.id} className="check-row">
+                    <span className="check-name"><span className="wp-dot" style={{ background: workplaceColor(workplaces, t.workplace.id) }} />{t.workplace.name}</span>
+                    <span className="check-expected">見込み {formatYen(t.totalPay)}</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      placeholder="実際の支給額"
+                      value={actual ?? ''}
+                      onChange={(e) => setActual(t.workplace.id, e.target.value === '' ? null : Number(e.target.value))}
+                    />
+                    <span className={`check-diff ${result.status}`}>
+                      {result.status === 'unset' && '未入力'}
+                      {result.status === 'match' && '一致しました'}
+                      {result.status === 'over' && `実績が ${formatYen(result.diff ?? 0)} 多い`}
+                      {result.status === 'under' && `実績が ${formatYen(Math.abs(result.diff ?? 0))} 少ない`}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          {/* 次の給料日（Issue #17）: 今日が属する支給期間の見込みと給料日 */}
+          <div className="check-block">
+            <span className="wp-totals-title">次の給料日</span>
+            {workplaces.map((w) => {
+              const period = periodFor(todayStr, w.closingDay ?? 31, w.payDay ?? 25)
+              const periodTotal = shifts
+                .filter((s) => wpOf(s).id === w.id && s.date >= period.start && s.date <= period.end)
+                .reduce((sum, s) => sum + calculatePay(s, settingsOf(s)).totalPay, 0)
+              return (
+                <span key={w.id} className="wp-total-line">
+                  <span className="wp-dot" style={{ background: workplaceColor(workplaces, w.id) }} />
+                  {w.name}: {period.payDate.slice(5).replace('-', '月')}日払い ・ {formatYen(periodTotal)}（{period.start.slice(5)}〜{period.end.slice(5)}分）
+                </span>
+              )
+            })}
+          </div>
           <button className="ghost-btn" onClick={downloadCsv} disabled={rows.length === 0}>{viewYM.month}月のCSVで保存</button>
           <p className="page-note">集計はカレンダーで表示中の月に連動します。月を変えるときはカレンダーページで月移動してください。</p>
         </section>
@@ -325,6 +413,21 @@ export default function App() {
                 <span>メモ（任意）</span>
                 <input type="text" list="dl-memos" value={w.memo ?? ''} placeholder="例: シフト提出は毎月15日まで" onChange={(e) => updateWorkplace(w.id, { memo: e.target.value })} />
               </label>
+              {/* 締め日・給料日（Issue #17）: 集計ページの「次の給料日」に使う */}
+              <div className="field-row-2">
+                <label className="field">
+                  <span>締め日</span>
+                  <select value={w.closingDay ?? 31} onChange={(e) => updateWorkplace(w.id, { closingDay: Number(e.target.value) })}>
+                    {[5, 10, 15, 20, 25, 31].map((d) => (<option key={d} value={d}>{d === 31 ? '月末' : `${d}日`}</option>))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>給料日（翌月）</span>
+                  <select value={w.payDay ?? 25} onChange={(e) => updateWorkplace(w.id, { payDay: Number(e.target.value) })}>
+                    {[5, 10, 15, 20, 25, 31].map((d) => (<option key={d} value={d}>{d === 31 ? '月末' : `${d}日`}</option>))}
+                  </select>
+                </label>
+              </div>
               {workplaces.length > 1 && (<button className="delete-btn" onClick={() => removeWorkplace(w.id)}>このバイト先を削除</button>)}
             </div>
           ))}
@@ -400,12 +503,21 @@ export default function App() {
                   <input type="time" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} />
                 </label>
               </div>
-              {/* 休憩は毎回は触らないので折りたたみに移し、常時表示の入力を減らす（Issue #14） */}
+              {/* 休憩と繰り返しは毎回は触らないので折りたたみの中（Issue #14, #16） */}
               <details className="modal-details">
-                <summary>休憩を変更する（今は {form.breakMinutes}分）</summary>
+                <summary>休憩・繰り返しを変更する</summary>
                 <label className="field">
                   <span>休憩（分）</span>
                   <input type="number" inputMode="numeric" value={form.breakMinutes} onChange={(e) => setForm({ ...form, breakMinutes: Number(e.target.value) })} />
+                </label>
+                <label className="field">
+                  <span>繰り返し（同じ曜日）</span>
+                  <select value={repeatCount} onChange={(e) => setRepeatCount(Number(e.target.value))}>
+                    <option value={1}>なし</option>
+                    <option value={4}>毎週 × 4回</option>
+                    <option value={8}>毎週 × 8回</option>
+                    <option value={12}>毎週 × 12回</option>
+                  </select>
                 </label>
               </details>
               <p className="preview">見込み <strong>{formatYen(preview.totalPay)}</strong>（実働 {formatMinutes(preview.workMinutes)}）</p>
@@ -419,6 +531,7 @@ export default function App() {
                 <ul className="errors">{errors.map((e) => (<li key={e}>{e}</li>))}</ul>
               )}
               <button className="primary-btn" onClick={addShift}>＋ この日に追加</button>
+              {repeatNote && (<p className="ok-note">{repeatNote}</p>)}
             </div>
           </div>
         </div>
