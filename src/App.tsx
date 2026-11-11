@@ -22,7 +22,7 @@ import { validateShift } from './lib/validate'
 // 予定表（カレンダー）のロジック（Issue #6）
 import { buildMonthGrid, groupByDate, shiftMonth } from './lib/calendar'
 // バイト先（複数登録）のロジック（Issue #7）
-import { migrateWorkplaces, resolveWorkplace, summarizeByWorkplace, workplaceColor, workplaceToSettings, type Workplace } from './lib/workplace'
+import { migrateWorkplaces, resolveWorkplace, summarizeByWorkplace, workplaceColor, type Workplace } from './lib/workplace'
 // 時間の重なり判定（Issue #9）
 import { findOverlaps } from './lib/overlap'
 // 入力候補（オートコンプリート）（Issue #11）
@@ -31,10 +31,14 @@ import { frequentPatterns, uniqueSuggestions } from './lib/suggest'
 import { comparePay } from './lib/check'
 import { weeklyDates } from './lib/repeat'
 import { periodFor } from './lib/payperiod'
+// 交通費の詳細設定（Issue #18）
+import { resolveTransport, type TransportMode } from './lib/transport'
 
 /** フォームとシフト共通の形: 入力項目 + 選んだバイト先のID */
 interface ShiftForm extends ShiftInput {
   workplaceId?: string
+  /** そのシフトだけの交通費（未設定ならバイト先の方式で解決）（Issue #18） */
+  transportOverride?: number
 }
 interface ShiftRecord extends ShiftForm {
   id: string
@@ -124,7 +128,11 @@ useEffect(() => localStorage.setItem(ACTUALS_KEY, JSON.stringify(actuals)), [act
   // ---- 派生データ ----
   // シフトのバイト先を解決し、そのバイト先の時給・交通費で計算するためのヘルパー
   const wpOf = (s: ShiftForm) => resolveWorkplace(workplaces, s.workplaceId)
-  const settingsOf = (s: ShiftForm) => workplaceToSettings(wpOf(s))
+  const settingsOf = (s: ShiftForm) => {
+// 時給はバイト先から、交通費は「方式 or シフト個別の上書き」から解決する（Issue #18）
+const wp = wpOf(s)
+return { hourlyWage: wp.hourlyWage, transportPerShift: resolveTransport(wp, s.transportOverride)}
+}
   // 合計はカレンダー表示中の月に連動する（Issue #10）
   const monthKey = `${viewYM.year}-${pad2(viewYM.month)}`
   const rows = useMemo(
@@ -400,11 +408,32 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                   <span>時給（円）</span>
                   <input type="number" inputMode="numeric" value={w.hourlyWage} onChange={(e) => updateWorkplace(w.id, { hourlyWage: Number(e.target.value) })} />
                 </label>
+                {/* 交通費の方式（Issue #18）: 方式に応じて下の入力が切り替わる */}
+                <label className="field">
+                  <span>交通費の方式</span>
+                  <select value={w.transportMode ?? 'fixed'} onChange={(e) => updateWorkplace(w.id, { transportMode: e.target.value as TransportMode })}>
+                    <option value="fixed">1勤務あたり固定額</option>
+                    <option value="roundTrip">片道運賃 ×2（往復）</option>
+                    <option value="pass">定期あり（支給なし）</option>
+                    <option value="none">支給なし</option>
+                  </select>
+                </label>
+              </div>
+              {(w.transportMode ?? 'fixed') === 'fixed' && (
                 <label className="field">
                   <span>交通費 / 1勤務（円）</span>
                   <input type="number" inputMode="numeric" value={w.transportPerShift} onChange={(e) => updateWorkplace(w.id, { transportPerShift: Number(e.target.value) })} />
                 </label>
-              </div>
+              )}
+              {(w.transportMode ?? 'fixed') === 'roundTrip' && (
+                <label className="field">
+                  <span>片道運賃（円）</span>
+                  <input type="number" inputMode="numeric" value={w.transportOneWay ?? 0} onChange={(e) => updateWorkplace(w.id, { transportOneWay: Number(e.target.value) })} />
+                </label>
+              )}
+              {((w.transportMode ?? 'fixed') === 'pass' || (w.transportMode ?? 'fixed') === 'none') && (
+                <p className="page-note">この方式では交通費は0円として計算します。</p>
+              )}
               <label className="field">
                 <span>場所（任意）</span>
                 <input type="text" list="dl-places" value={w.place ?? ''} placeholder="例: 駅前" onChange={(e) => updateWorkplace(w.id, { place: e.target.value })} />
@@ -518,6 +547,17 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                     <option value={8}>毎週 × 8回</option>
                     <option value={12}>毎週 × 12回</option>
                   </select>
+                </label>
+                {/* その日だけ交通費が違う場合の上書き（空欄ならバイト先の方式どおり）（Issue #18） */}
+                <label className="field">
+                  <span>交通費（円・任意）</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="空欄ならバイト先の設定"
+                    value={form.transportOverride ?? ''}
+                    onChange={(e) => setForm({ ...form, transportOverride: e.target.value === '' ? undefined : Number(e.target.value) })}
+                  />
                 </label>
               </details>
               <p className="preview">見込み <strong>{formatYen(preview.totalPay)}</strong>（実働 {formatMinutes(preview.workMinutes)}）</p>

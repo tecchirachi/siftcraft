@@ -10,7 +10,8 @@
 * - workplaceId が無い・消えたバイト先を指している等の場合に備え、
 * resolveWorkplace が必ずどれか1件を返す（= 画面が壊れない）
 */
-import type { PaySettings} from './pay'
+import type { PaySettings } from './pay'
+import { transportPerShiftOf } from './transport'
 
 /** バイト先1件分のデータ */
 export interface Workplace {
@@ -24,6 +25,10 @@ place?: string
 memo?: string
 /** 締め日（1〜31、31=月末）。未設定なら月末締めとして扱う（Issue #17） */
 closingDay?: number
+/** 交通費の方式（未設定は fixed として扱う）（Issue #18） */
+transportMode?: import('./transport').TransportMode
+/** 片道運賃（方式が roundTrip のとき使う）（Issue #18） */
+transportOneWay?: number
 /** 給料日（締め日の翌月のこの日、31=月末）。未設定なら25日（Issue #17） */
 payDay?: number
 }
@@ -58,7 +63,9 @@ return workplaces[0]?? { id: DEFAULT_WORKPLACE_ID, name: 'バイト先', hourlyW
 
 /** バイト先を給料計算用の設定（PaySettings）に変換する */
 export function workplaceToSettings(wp: Workplace): PaySettings {
-return { hourlyWage: wp.hourlyWage, transportPerShift: wp.transportPerShift}
+// 交通費は方式から解決する（Issue #18）。import の循環を避けるため遅延参照ではなく
+// 同一ファイル内で完結させたいが、解決ロジックは transport.ts が正なのでそちらを使う
+return { hourlyWage: wp.hourlyWage, transportPerShift: transportPerShiftOf(wp) }
 }
 
 /** バイト先別集計の入力（計算済みの行） */
