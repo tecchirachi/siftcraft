@@ -37,6 +37,14 @@ import { resolveTransport, type TransportMode } from './lib/transport'
 import { levelOf, pointsBalance, pointsEarnedOf, THEMES, themeById } from './lib/game'
 import { evaluateBadges, TIER_BONUS_POINTS, TIER_COLORS, totalTiers } from './lib/badge'
 import { classifyTap, type TapState } from './lib/tap'
+import {
+  APPEARANCE_KEY,
+  APPEARANCE_OPTIONS,
+  DARK_OVERRIDES,
+  isDarkEffective,
+  parseAppearance,
+  type Appearance,
+} from './lib/appearance'
 // 年間収入トラッカー（Issue #22）
 import { INCOME_WALLS, monthlyTotals, projectYearEnd, wallStatus, yearTotal } from './lib/year'
 
@@ -143,6 +151,20 @@ const [unlockedThemes, setUnlockedThemes] = useState<string[]>(() => {
   return saved.includes('peach') ? saved : ['peach', ...saved]
 })
 const [repeatNote, setRepeatNote] = useState('')
+// 外観（Issue #30）: 手動設定＋端末のダーク設定を監視する
+const [appearance, setAppearance] = useState<Appearance>(() =>
+  parseAppearance(load(APPEARANCE_KEY, 'auto')),
+)
+const [osDark, setOsDark] = useState<boolean>(
+  () => typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches,
+)
+useEffect(() => {
+  const mq = window.matchMedia('(prefers-color-scheme: dark)')
+  const onChange = (e: MediaQueryListEvent) => setOsDark(e.matches)
+  mq.addEventListener('change', onChange)
+  return () => mq.removeEventListener('change', onChange)
+}, [])
+const darkEffective = isDarkEffective(appearance, osDark)
   const [page, setPage] = useState<Page>('calendar')
 // 月移動アニメーションの方向（Issue #19）
 const [slideDir, setSlideDir] = useState<'next' | 'prev' | ''>('')
@@ -170,6 +192,7 @@ const [slideDir, setSlideDir] = useState<'next' | 'prev' | ''>('')
 useEffect(() => localStorage.setItem(ACTUALS_KEY, JSON.stringify(actuals)), [actuals])
 useEffect(() => localStorage.setItem(THEME_KEY, JSON.stringify(themeId)), [themeId])
 useEffect(() => localStorage.setItem(UNLOCKED_KEY, JSON.stringify(unlockedThemes)), [unlockedThemes])
+useEffect(() => localStorage.setItem(APPEARANCE_KEY, JSON.stringify(appearance)), [appearance])
 
   // ---- 派生データ ----
   // シフトのバイト先を解決し、そのバイト先の時給・交通費で計算するためのヘルパー
@@ -350,7 +373,15 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
 
   // ---- 画面 ----
   return (
-    <main className={page === 'calendar' ? 'app app-main' : 'app'} style={activeTheme.vars as CSSProperties}>
+    <main
+      className={`${page === 'calendar' ? 'app app-main' : 'app'}${darkEffective ? ' is-dark' : ''}`}
+      style={{
+        ...(activeTheme.vars as CSSProperties),
+        // ダーク時は面と文字の基本色を上書きする（Issue #30）。
+        // コンテナ色は color-mix でテーマ色から生成される
+        ...(darkEffective ? (DARK_OVERRIDES as CSSProperties) : {}),
+      }}
+    >
       {/* ヘッダー: アプリ名とハンバーガーボタンは全ページ共通 */}
       <header className="app-header">
         <button className="menu-btn" aria-label="メニューを開く" onClick={() => setMenuOpen(true)}>
@@ -730,6 +761,23 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
             </span>
           </label>
           <p className="page-note">目標はカレンダー上部の進捗と、集計ページの詳細に使われます。</p>
+          {/* 外観（Issue #30）: 端末のナイトモードに任せず手動でも切り替える */}
+          <div className="field">
+            <span>画面の明るさ</span>
+            <span className="pattern-row">
+              {APPEARANCE_OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  className={`pattern-chip${appearance === o.value ? ' active' : ''}`}
+                  onClick={() => setAppearance(o.value)}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </span>
+          </div>
+          <p className="page-note">ダークを選ぶと、どのテーマでも暗い配色になります（色はテーマから自動で作ります）。</p>
           <p className="page-note">データはこの端末のブラウザの中だけに保存されます。サーバーには送信されません。</p>
         </section>
       )}
