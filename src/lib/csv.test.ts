@@ -16,7 +16,7 @@ const csv = shiftsToCsv([entry('2026-11-02', '09:00', '17:00', 60)])
 const lines = csv.replace('\uFEFF', '').split('\r\n')
 expect(lines[0]).toContain('日付')
 // 9-17時 休憩60分: 実働420分、金額 1200*7+500=8900
-expect(lines[1]).toBe('2026-11-02,09:00,17:00,60,420,0,0,8900')
+expect(lines[1]).toBe('2026-11-02,,09:00,17:00,60,420,0,0,8900')
 })
 
 it('空データならヘッダーのみ', () => {

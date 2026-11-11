@@ -14,21 +14,28 @@
 
 import { useEffect, useMemo, useState} from 'react'
 import './App.css'
-import { calculatePay, formatMinutes, formatYen, type PaySettings, type ShiftInput} from './lib/pay'
+import { calculatePay, formatMinutes, formatYen, type ShiftInput} from './lib/pay'
 import { filterByMonth, listMonths} from './lib/filter'
 import { goalProgress} from './lib/goal'
 import { shiftsToCsv} from './lib/csv'
 import { validateShift} from './lib/validate'
 // 予定表（カレンダー）のロジック（Issue #6）
 import { buildMonthGrid, groupByDate, shiftMonth } from './lib/calendar'
+// バイト先（複数登録）のロジック（Issue #7）
+import { migrateWorkplaces, resolveWorkplace, summarizeByWorkplace, workplaceToSettings, type Workplace } from './lib/workplace'
 /** 保存・一覧表示に使う「ID付きのシフト」 */
-interface ShiftRecord extends ShiftInput {
+/** フォームとシフト共通の形: 入力項目 + 選んだバイト先のID */
+interface ShiftForm extends ShiftInput {
+workplaceId?: string
+}
+interface ShiftRecord extends ShiftForm {
 id: string
 }
 
 const SHIFTS_KEY = 'shiftcraft:shifts'
 const SETTINGS_KEY = 'shiftcraft:settings'
 const GOAL_KEY = 'shiftcraft:goal'
+const WORKPLACES_KEY = 'shiftcraft:workplaces'
 
 /** localStorage から JSON を読み込む（壊れていたら初期値を使う） */
 function load<T>(key: string, fallback: T): T {
@@ -51,8 +58,12 @@ weekday: d.toLocaleDateString('ja-JP', { weekday: 'short'}),
 
 export default function App() {
 // ---- 状態（state） ----
-const [settings, setSettings] = useState<PaySettings>(() =>
+// バイト先一覧。初回は旧・単一設定（時給/交通費）から移行して作る（Issue #7）
+const [workplaces, setWorkplaces] = useState<Workplace[]>(() =>
+migrateWorkplaces(
+load<Workplace[] | null>(WORKPLACES_KEY, null),
 load(SETTINGS_KEY, { hourlyWage: 1200, transportPerShift: 500}),
+),
 )
 const [shifts, setShifts] = useState<ShiftRecord[]>(() => load(SHIFTS_KEY, []))
 const [selectedMonth, setSelectedMonth] = useState('')
@@ -62,34 +73,44 @@ const [errors, setErrors] = useState<string[]>([])
 const now = new Date()
 const [viewYM, setViewYM] = useState({ year: now.getFullYear(), month: now.getMonth()+ 1})
 const [pickedDate, setPickedDate] = useState(now.toISOString().slice(0, 10))
-const [form, setForm] = useState<ShiftInput>({
+const [form, setForm] = useState<ShiftForm>({
 date: new Date().toISOString().slice(0, 10),
 start: '09:00',
 end: '17:00',
 breakMinutes: 60,
+workplaceId: undefined, // 未選択なら先頭のバイト先として解決される
 })
 
 // ---- 状態が変わったら localStorage に保存する ----
-useEffect(() => localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)), [settings])
+useEffect(() => localStorage.setItem(WORKPLACES_KEY, JSON.stringify(workplaces)), [workplaces])
 useEffect(() => localStorage.setItem(SHIFTS_KEY, JSON.stringify(shifts)), [shifts])
 useEffect(() => localStorage.setItem(GOAL_KEY, JSON.stringify(goalYen)), [goalYen])
 
 // ---- 派生データ: 月で絞り込み → 並べ替え → 給料計算 ----
+// シフトのバイト先を解決し、そのバイト先の時給・交通費で計算するためのヘルパー
+const wpOf = (s: ShiftForm) => resolveWorkplace(workplaces, s.workplaceId)
+const settingsOf = (s: ShiftForm) => workplaceToSettings(wpOf(s))
 const rows = useMemo(
 () =>
 filterByMonth([...shifts], selectedMonth)
 .sort((a, b) => a.date.localeCompare(b.date))
-.map((s) => ({ shift: s, pay: calculatePay(s, settings)})),
-[shifts, settings, selectedMonth],
+.map((s) => ({ shift: s, pay: calculatePay(s, settingsOf(s))})),
+[shifts, workplaces, selectedMonth],
+)
+// バイト先別の合計（表示中の行に対して）
+const wpTotals = summarizeByWorkplace(
+rows.map((r) => ({ workplaceId: r.shift.workplaceId, totalPay: r.pay.totalPay, workMinutes: r.pay.workMinutes})),
+workplaces,
 )
 const total = rows.reduce((sum, r) => sum + r.pay.totalPay, 0)
 const totalMinutes = rows.reduce((sum, r) => sum + r.pay.workMinutes, 0)
-const goal = goalProgress(total, goalYen, settings.hourlyWage)
-const preview = calculatePay(form, settings)
+// 「あと何時間」の換算は先頭のバイト先の時給を代表値として使う
+const goal = goalProgress(total, goalYen, workplaces[0]?.hourlyWage?? 0)
+const preview = calculatePay(form, settingsOf(form))
 const periodLabel = selectedMonth? `${selectedMonth.replace('-', '年')}月`: '全期間'
 // 予定表用: 表示月のマス並びと、日付ごとにまとめたシフト（金額つき）
 const calGrid = buildMonthGrid(viewYM.year, viewYM.month)
-const calByDate = groupByDate(shifts.map((s) => ({...s, pay: calculatePay(s, settings)})))
+const calByDate = groupByDate(shifts.map((s) => ({...s, pay: calculatePay(s, settingsOf(s)), workplaceName: wpOf(s).name})))
 const pickedRows = calByDate.get(pickedDate)?? []
 const todayStr = now.toISOString().slice(0, 10)
 
@@ -101,8 +122,15 @@ if (errs.length > 0) return
 setShifts((prev) => [...prev, {...form, id: crypto.randomUUID()}])
 }
 const removeShift = (id: string) => setShifts((prev) => prev.filter((s) => s.id!== id))
+// バイト先の追加・更新・削除（削除されたバイト先のシフトは先頭に寄せられる）
+const addWorkplace = () =>
+setWorkplaces((prev) => [...prev, { id: crypto.randomUUID(), name: `バイト先${prev.length + 1}`, hourlyWage: 1200, transportPerShift: 0}])
+const updateWorkplace = (id: string, patch: Partial<Workplace>) =>
+setWorkplaces((prev) => prev.map((w) => (w.id === id? {...w,...patch}: w)))
+const removeWorkplace = (id: string) =>
+setWorkplaces((prev) => (prev.length <= 1? prev: prev.filter((w) => w.id!== id)))
 const downloadCsv = () => {
-const csv = shiftsToCsv(rows.map((r) => ({ shift: r.shift, pay: r.pay})))
+const csv = shiftsToCsv(rows.map((r) => ({ shift: r.shift, pay: r.pay, workplaceName: wpOf(r.shift).name})))
 const blob = new Blob([csv], { type: 'text/csv;charset=utf-8'})
 const url = URL.createObjectURL(blob)
 const a = document.createElement('a')
@@ -194,7 +222,7 @@ return (<><span className="cal-dots">{'●'.repeat(Math.min(3, dayRows.length))}
 {pickedRows.length === 0? (
 <span>シフトはありません（上の日付がフォームに入りました）</span>
 ): (
-pickedRows.map((r) => (<span key={r.id}>{r.start}–{r.end} / {formatYen(r.pay.totalPay)}</span>))
+pickedRows.map((r) => (<span key={r.id}>{r.workplaceName} {r.start}–{r.end} / {formatYen(r.pay.totalPay)}</span>))
 )}
 </div>
 </section>
@@ -202,6 +230,12 @@ pickedRows.map((r) => (<span key={r.id}>{r.start}–{r.end} / {formatYen(r.pay.t
 {/* シフト追加 */}
 <section className="card">
 <h2>シフトを追加</h2>
+<label className="field">
+<span>バイト先</span>
+<select value={wpOf(form).id} onChange={(e) => setForm({...form, workplaceId: e.target.value})}>
+{workplaces.map((w) => (<option key={w.id} value={w.id}>{w.name}（時給 {formatYen(w.hourlyWage)}）</option>))}
+</select>
+</label>
 <label className="field">
 <span>日付</span>
 <input type="date" value={form.date} onChange={(e) => setForm({...form, date: e.target.value})} />
@@ -248,7 +282,7 @@ return (
 <div className="shift-main">
 <span className="shift-time">{shift.start} – {shift.end}</span>
 <span className="shift-meta">
-実働 {formatMinutes(pay.workMinutes)}・休憩{shift.breakMinutes}分
+{wpOf(shift).name}・実働 {formatMinutes(pay.workMinutes)}・休憩{shift.breakMinutes}分
 {overtime > 0 && <span className="chip">残業 {formatMinutes(overtime)}</span>}
 {lateNight > 0 && <span className="chip night">深夜 {formatMinutes(lateNight)}</span>}
 </span>
@@ -262,19 +296,47 @@ return (
 })}
 </ul>
 )}
+{wpTotals.length > 0 && (
+<div className="wp-totals">
+<span className="wp-totals-title">バイト先別の合計（{periodLabel}）</span>
+{wpTotals.map((t) => (
+<span key={t.workplace.id} className="wp-total-line">{t.workplace.name}: {formatYen(t.totalPay)}（{t.count}件・{formatMinutes(t.workMinutes)}）</span>
+))}
+</div>
+)}
 </section>
 
 {/* 設定は折りたたみ（低頻度の操作で画面を占有しない） */}
 <details className="card settings">
-<summary>設定（時給・交通費・目標）</summary>
+<summary>バイト先と目標の設定</summary>
+{workplaces.map((w) => (
+<div key={w.id} className="wp-editor">
+<label className="field">
+<span>バイト先の名前</span>
+<input type="text" value={w.name} onChange={(e) => updateWorkplace(w.id, { name: e.target.value})} />
+</label>
+<div className="field-row-2">
 <label className="field">
 <span>時給（円）</span>
-<input type="number" inputMode="numeric" value={settings.hourlyWage} onChange={(e) => setSettings({...settings, hourlyWage: Number(e.target.value)})} />
+<input type="number" inputMode="numeric" value={w.hourlyWage} onChange={(e) => updateWorkplace(w.id, { hourlyWage: Number(e.target.value)})} />
 </label>
 <label className="field">
 <span>交通費 / 1勤務（円）</span>
-<input type="number" inputMode="numeric" value={settings.transportPerShift} onChange={(e) => setSettings({...settings, transportPerShift: Number(e.target.value)})} />
+<input type="number" inputMode="numeric" value={w.transportPerShift} onChange={(e) => updateWorkplace(w.id, { transportPerShift: Number(e.target.value)})} />
 </label>
+</div>
+<label className="field">
+<span>場所（任意）</span>
+<input type="text" value={w.place?? ''} placeholder="例: 豊橋駅前" onChange={(e) => updateWorkplace(w.id, { place: e.target.value})} />
+</label>
+<label className="field">
+<span>メモ（任意）</span>
+<input type="text" value={w.memo?? ''} placeholder="例: シフト提出は毎月15日まで" onChange={(e) => updateWorkplace(w.id, { memo: e.target.value})} />
+</label>
+{workplaces.length > 1 && (<button className="delete-btn" onClick={() => removeWorkplace(w.id)}>このバイト先を削除</button>)}
+</div>
+))}
+<button className="ghost-btn" onClick={addWorkplace}>＋ バイト先を追加</button>
 <label className="field">
 <span>目標金額（円）</span>
 <input type="number" inputMode="numeric" value={goalYen} onChange={(e) => setGoalYen(Number(e.target.value))} />

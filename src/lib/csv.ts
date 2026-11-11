@@ -17,9 +17,11 @@ import type { PayBreakdown, ShiftInput} from './pay'
 export interface CsvEntry {
 shift: ShiftInput
 pay: PayBreakdown
+/** バイト先名（Issue #7で追加。無ければ空欄） */
+workplaceName?: string
 }
 
-const HEADER = ['日付', '開始', '終了', '休憩(分)', '実働(分)', '残業(分)', '深夜(分)', '金額(円)']
+const HEADER = ['日付', 'バイト先', '開始', '終了', '休憩(分)', '実働(分)', '残業(分)', '深夜(分)', '金額(円)']
 
 /** 1つの値をCSV形式にエスケープする */
 function escapeCsv(value: string | number): string {
@@ -32,9 +34,10 @@ return s
 
 /** エントリ一覧をCSV文字列に変換する。データが空ならヘッダーのみ */
 export function shiftsToCsv(entries: CsvEntry[]): string {
-const lines = entries.map(({ shift, pay}) =>
+const lines = entries.map(({ shift, pay, workplaceName}) =>
 [
 shift.date,
+workplaceName?? '',
 shift.start,
 shift.end,
 shift.breakMinutes,
