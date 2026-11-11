@@ -365,12 +365,15 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
       {/* ===== ページ: カレンダー（メイン・1画面） ===== */}
       {page === 'calendar' && (
         <>
-          {/* 今月のサマリーは1行だけ（詳細は集計ページへ） */}
-          <div className="summary-line">
-            <span>{viewYM.month}月の見込み <strong>{formatYen(animatedTotal)}</strong></span>
-            <span className="summary-goal">目標 {goal.progressPercent}%</span>
+          {/* 今月のサマリー（Issue #24）: M3 の primary-container の面で
+              「今月の見込み」を画面の主役にする。詳細は集計ページへ */}
+          <div className="summary-hero">
+            <div className="summary-line">
+              <span>{viewYM.month}月の見込み <strong>{formatYen(animatedTotal)}</strong></span>
+              <span className="summary-goal">目標 {goal.progressPercent}%</span>
+            </div>
+            <div className="goal-bar mini"><div className="goal-fill" style={{ width: `${goal.progressPercent}%` }} /></div>
           </div>
-          <div className="goal-bar mini"><div className="goal-fill" style={{ width: `${goal.progressPercent}%` }} /></div>
           {/* レベル表示（Issue #21）: タップでレベル・テーマページへ */}
           <button className="level-line" onClick={() => goPage('level')}>
             <span className="level-badge">Lv.{levelInfo.level}</span>
