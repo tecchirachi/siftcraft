@@ -327,7 +327,7 @@ return (
 </div>
 <label className="field">
 <span>場所（任意）</span>
-<input type="text" value={w.place?? ''} placeholder="例: 豊橋駅前" onChange={(e) => updateWorkplace(w.id, { place: e.target.value})} />
+<input type="text" value={w.place?? ''} placeholder="例: 駅前" onChange={(e) => updateWorkplace(w.id, { place: e.target.value})} />
 </label>
 <label className="field">
 <span>メモ（任意）</span>
