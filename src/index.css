@@ -5,8 +5,8 @@
 html, body { margin: 0; padding: 0;}
 body {
 font-family: system-ui, -apple-system, 'Hiragino Kaku Gothic ProN', sans-serif;
-font-size: 16px;
-line-height: 1.5;
+font-size: 17px;
+line-height: 1.65;
 -webkit-tap-highlight-color: transparent;
 -webkit-font-smoothing: antialiased;
 }
