@@ -25,9 +25,12 @@ expect(mid.level).toBe(2)
 expect(mid.progressPercent).toBe(65) // (230-100)/(300-100)=65%
 })
 it('称号はレベルで変わる', () => {
-expect(titleForLevel(1)).toBe('バイト見習い')
-expect(titleForLevel(4)).toBe('頼れるバイト')
-expect(titleForLevel(10)).toBe('伝説のバイト')
+expect(titleForLevel(1)).toBe('バイト見習い1')
+expect(titleForLevel(3)).toBe('バイト見習い3')
+expect(titleForLevel(4)).toBe('バイトかけだし1')
+expect(titleForLevel(10)).toBe('頼れるバイト1')
+expect(titleForLevel(19)).toBe('伝説のバイト1')
+expect(titleForLevel(25)).toBe('伝説のバイト7')
 })
 })
 

@@ -45,17 +45,26 @@ export function pointsEarnedOf(stats: GameStats): number {
 return Math.floor(stats.totalWorkMinutes / 60) * 5 + stats.totalShifts * 10
 }
 
-const TITLES: Array<{ minLevel: number; title: string}> = [
-{ minLevel: 10, title: '伝説のバイト'},
-{ minLevel: 8, title: 'バイトマスター'},
-{ minLevel: 6, title: 'バイトリーダー'},
-{ minLevel: 4, title: '頼れるバイト'},
-{ minLevel: 2, title: 'バイトかけだし'},
-{ minLevel: 1, title: 'バイト見習い'},
+/**
+ * 称号は7区分 × 3段階（Issue #26 で段階を増やした）。
+ * 名前が変わるのは7回で、各区分の中では「見習い1 → 2 → 3」のように
+ * 数字が上がる。小さな達成感を細かく刻むための設計。
+ * 最終区分（伝説）だけは上限なく数字が増えていく。
+ */
+const TITLE_NAMES = [
+'バイト見習い',
+'バイトかけだし',
+'一人前バイト',
+'頼れるバイト',
+'バイトリーダー',
+'バイトマスター',
+'伝説のバイト',
 ]
 
 export function titleForLevel(level: number): string {
-return TITLES.find((t) => level >= t.minLevel)?.title?? 'バイト見習い'
+const band = Math.min(Math.floor((level - 1) / 3), TITLE_NAMES.length - 1)
+const step = band < TITLE_NAMES.length - 1 ? ((level - 1) % 3) + 1 : level - 18
+return `${TITLE_NAMES[band]}${step}`
 }
 
 export function levelOf(stats: GameStats): LevelInfo {

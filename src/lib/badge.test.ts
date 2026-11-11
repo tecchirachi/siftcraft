@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { evaluateBadges, type BadgeEntry } from './badge'
+import { evaluateBadges, TIER_NAMES, totalTiers, type BadgeEntry } from './badge'
 import type { PayBreakdown } from './pay'
 
 /** テスト用の内訳を作る（必要な項目だけ差し替える） */
@@ -27,68 +27,83 @@ function entry(date: string, start = '17:00', p: Partial<PayBreakdown> = {}, wor
 }
 
 function byId(entries: BadgeEntry[], goal = 80000) {
-  return new Map(evaluateBadges(entries, goal).map((s) => [s.badge.id, s]))
+  return new Map(evaluateBadges(entries, goal).map((s) => [s.id, s]))
 }
 
-describe('evaluateBadges', () => {
-  it('空なら何も達成していない', () => {
+describe('evaluateBadges（ティア制）', () => {
+  it('空なら全カテゴリ ティア0', () => {
     const statuses = evaluateBadges([], 80000)
-    expect(statuses).toHaveLength(12)
-    expect(statuses.every((s) => !s.unlocked)).toBe(true)
+    expect(statuses).toHaveLength(9)
+    expect(statuses.every((s) => s.tier === 0 && s.tierName === null)).toBe(true)
+    expect(totalTiers(statuses)).toBe(0)
   })
 
-  it('1件で「はじめの一歩」、進捗は「あと9件」になる', () => {
+  it('シフト1件で件数ティア1（ブロンズ）、次はあと9件', () => {
     const m = byId([entry('2026-11-02')])
-    expect(m.get('first')?.unlocked).toBe(true)
-    expect(m.get('shifts10')?.unlocked).toBe(false)
-    expect(m.get('shifts10')?.progressText).toBe('あと9件')
+    const s = m.get('shifts')
+    expect(s?.tier).toBe(1)
+    expect(s?.tierName).toBe('ブロンズ')
+    expect(s?.nextThreshold).toBe(10)
+    expect(s?.progressText).toBe('あと9件で シルバー')
   })
 
-  it('深夜・残業は内訳の分数で判定する', () => {
-    const m = byId([entry('2026-11-02', '17:00', { lateNightMinutes: 30, overtimeMinutes: 15 })])
-    expect(m.get('night')?.unlocked).toBe(true)
-    expect(m.get('overtime')?.unlocked).toBe(true)
+  it('件数500件で最大ティア（レジェンド）・MAX表示', () => {
+    const many = Array.from({ length: 500 }, (_, i) =>
+      entry(`2026-${String((i % 12) + 1).padStart(2, '0')}-${String((i % 28) + 1).padStart(2, '0')}`),
+    )
+    const s = byId(many).get('shifts')
+    expect(s?.tier).toBe(8)
+    expect(s?.tierName).toBe(TIER_NAMES[7])
+    expect(s?.nextThreshold).toBeNull()
+    expect(s?.progressText).toBe('MAX')
   })
 
-  it('7時前開始で早朝、2バイト先でかけもち', () => {
+  it('深夜・残業は累計時間でティアが上がる', () => {
+    // 深夜300分=5時間 → ティア2、残業60分=1時間 → ティア1
+    const m = byId([entry('2026-11-02', '17:00', { lateNightMinutes: 300, overtimeMinutes: 60 })])
+    expect(m.get('night')?.tier).toBe(2)
+    expect(m.get('overtime')?.tier).toBe(1)
+  })
+
+  it('早朝は回数、かけもちはバイト先数で数える', () => {
     const m = byId([
       entry('2026-11-02', '06:30', {}, 'a'),
-      entry('2026-11-03', '17:00', {}, 'b'),
+      entry('2026-11-03', '06:00', {}, 'b'),
+      entry('2026-11-04', '17:00', {}, 'b'),
     ])
-    expect(m.get('early')?.unlocked).toBe(true)
-    expect(m.get('multi')?.unlocked).toBe(true)
+    expect(m.get('early')?.value).toBe(2)
+    expect(m.get('multi')?.tier).toBe(1) // 2か所でティア1
   })
 
-  it('4週連続を判定する（同じ週の複数件は1週）', () => {
+  it('連続週は最長記録で判定する', () => {
     const m = byId([
-      entry('2026-11-02'),
-      entry('2026-11-03'),
-      entry('2026-11-09'),
-      entry('2026-11-16'),
-      entry('2026-11-23'),
+      entry('2026-11-02'), entry('2026-11-09'), entry('2026-11-16'), entry('2026-11-23'),
     ])
-    expect(m.get('streak4')?.unlocked).toBe(true)
+    expect(m.get('streak')?.value).toBe(4)
+    expect(m.get('streak')?.tier).toBe(2) // 2週=ティア1, 4週=ティア2
   })
 
-  it('月の合計が目標以上なら目標達成', () => {
-    const m = byId([entry('2026-11-02', '17:00', { totalPay: 50000 }), entry('2026-11-03', '17:00', { totalPay: 35000 })], 80000)
-    expect(m.get('goal')?.unlocked).toBe(true)
-  })
-
-  it('年収100万円は交通費を除いて判定する', () => {
-    // 支給総額は100万円超でも、交通費を引くと届かないケース
-    const m = byId([entry('2026-06-01', '17:00', { totalPay: 1050000, transportPay: 100000 })])
-    expect(m.get('rich')?.unlocked).toBe(false)
-    const m2 = byId([entry('2026-06-01', '17:00', { totalPay: 1050000, transportPay: 40000 })])
-    expect(m2.get('rich')?.unlocked).toBe(true)
-  })
-
-  it('実働時間は時間単位（切り捨て）で判定する', () => {
-    const many = Array.from({ length: 25 }, (_, i) =>
-      entry(`2026-11-${String((i % 28) + 1).padStart(2, '0')}`, '17:00', { workMinutes: 240 }),
+  it('目標達成は「達成した月数」、年収は交通費を除いた最高年で判定', () => {
+    const m = byId(
+      [
+        entry('2026-10-05', '17:00', { totalPay: 90000 }),
+        entry('2026-11-02', '17:00', { totalPay: 85000 }),
+        entry('2026-11-03', '17:00', { totalPay: 1050000, transportPay: 100000 }),
+      ],
+      80000,
     )
-    const m = byId(many) // 25件 × 4時間 = 100時間
-    expect(m.get('hours100')?.unlocked).toBe(true)
-    expect(m.get('shifts50')?.progressText).toBe('あと25件')
+    expect(m.get('goal')?.value).toBe(2) // 10月と11月
+    // 2026年の課税対象 = 90000+85000+950000 = 1,125,000 → 100万円超でティア5
+    expect(m.get('income')?.tier).toBe(5)
+  })
+
+  it('区間進捗は現在区間内の割合になる', () => {
+    // 件数15件: ティア2（10件）到達、次25件まで区間 10→25 の 5/15 = 33%
+    const many = Array.from({ length: 15 }, (_, i) =>
+      entry(`2026-11-${String((i % 28) + 1).padStart(2, '0')}`),
+    )
+    const s = byId(many).get('shifts')
+    expect(s?.tier).toBe(2)
+    expect(s?.segmentPercent).toBe(33)
   })
 })

@@ -35,7 +35,7 @@ import { periodFor } from './lib/payperiod'
 import { resolveTransport, type TransportMode } from './lib/transport'
 // レベル・ポイント・テーマ（Issue #21）
 import { levelOf, pointsBalance, pointsEarnedOf, THEMES, themeById } from './lib/game'
-import { evaluateBadges } from './lib/badge'
+import { evaluateBadges, TIER_BONUS_POINTS, TIER_COLORS, totalTiers } from './lib/badge'
 // 年間収入トラッカー（Issue #22）
 import { INCOME_WALLS, monthlyTotals, projectYearEnd, wallStatus, yearTotal } from './lib/year'
 
@@ -204,13 +204,14 @@ return { hourlyWage: wp.hourlyWage, transportPerShift: resolveTransport(wp, s.tr
   }
   const levelInfo = levelOf(gameStats)
   const pointsEarned = pointsEarnedOf(gameStats)
-  const points = pointsBalance(gameStats, unlockedThemes)
-  // 実績バッジ（Issue #25）: 全シフトの内訳から判定する
+  // 実績バッジ（Issue #25 / ティア制は #26）: 全シフトの内訳から判定する
   const badgeStatuses = evaluateBadges(
     shifts.map((sh) => ({ shift: sh, pay: calculatePay(sh, settingsOf(sh)) })),
     goalYen,
   )
-  const badgeUnlockedCount = badgeStatuses.filter((b) => b.unlocked).length
+  // ティア到達はボーナスポイントになる（長期モチベーションとテーマ解放をつなぐ）
+  const badgeBonus = totalTiers(badgeStatuses) * TIER_BONUS_POINTS
+  const points = pointsBalance(gameStats, unlockedThemes) + badgeBonus
   const activeTheme = themeById(themeId)
   // 年間トラッカー用（Issue #22）: 交通費は非課税なので年収から除く
   const yearEntries = shifts.map((sh) => {
@@ -640,15 +641,24 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
             <strong>{points} P</strong>
             <span className="page-note">（累計 {pointsEarned} P 獲得）</span>
           </div>
-          {/* 実績バッジ（Issue #25）: 達成は色つき、未達成は淡く＋進捗つき */}
-          <span className="wp-totals-title">実績（{badgeUnlockedCount} / {badgeStatuses.length}）</span>
+          {/* 実績バッジ（Issue #25 / ティア制 #26）: ティアの色で丸が変わり、
+              次のティアまでの進捗バーと「あと○○」が常に出る */}
+          <span className="wp-totals-title">実績（合計 {totalTiers(badgeStatuses)} ティア ・ ボーナス +{badgeBonus} P）</span>
           <div className="badge-grid">
-            {badgeStatuses.map(({ badge, unlocked, progressText }) => (
-              <div key={badge.id} className={`badge-card${unlocked ? ' unlocked' : ''}`}>
-                <span className="badge-mark">{badge.mark}</span>
-                <span className="badge-name">{badge.name}</span>
-                <span className="badge-desc">{badge.description}</span>
-                <span className="badge-state">{unlocked ? '達成' : progressText}</span>
+            {badgeStatuses.map((s) => (
+              <div key={s.id} className="badge-card">
+                <span
+                  className="badge-mark"
+                  style={s.tier > 0 ? { background: TIER_COLORS[s.tier - 1], color: '#fff' } : undefined}
+                >
+                  {s.mark}
+                </span>
+                <span className="badge-name">{s.name}</span>
+                <span className="badge-tier">{s.tierName ?? '未到達'} ・ {s.description}</span>
+                <span className="badge-bar">
+                  <span className="badge-bar-fill" style={{ width: `${s.segmentPercent}%` }} />
+                </span>
+                <span className="badge-state">{s.progressText}</span>
               </div>
             ))}
           </div>
