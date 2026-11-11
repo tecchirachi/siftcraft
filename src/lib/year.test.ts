@@ -42,3 +42,10 @@ it('今年は経過日数で比例計算する（うるう年でない2026年）
 expect(projectYearEnd(entries, 2026, '2026-07-02')).toBe(199454)
 })
 })
+
+describe('INCOME_WALLS（2026年分の制度）', () => {
+  it('136万・150万・178万の3本で、昇順に並ぶ', async () => {
+    const { INCOME_WALLS } = await import('./year')
+    expect(INCOME_WALLS.map((w) => w.limit)).toEqual([1360000, 1500000, 1780000])
+  })
+})
