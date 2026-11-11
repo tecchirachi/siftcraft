@@ -36,7 +36,6 @@ import { resolveTransport, type TransportMode } from './lib/transport'
 // レベル・ポイント・テーマ（Issue #21）
 import { levelOf, pointsBalance, pointsEarnedOf, THEMES, themeById } from './lib/game'
 import { evaluateBadges, TIER_BONUS_POINTS, TIER_COLORS, totalTiers } from './lib/badge'
-import { classifyTap, type TapState } from './lib/tap'
 import {
   APPEARANCE_KEY,
   APPEARANCE_OPTIONS,
@@ -277,18 +276,11 @@ const animatedTotal = useAnimatedNumber(total)
     workplaceId
       ? frequentPatterns(shifts, workplaceId, (sh) => resolveWorkplace(workplaces, sh.workplaceId).id)[0]
       : undefined
-  // カレンダーのタップ（Issue #29）: 1タップ=選択、ダブルタップ=入力モーダル。
-  // 判定は lib/tap.ts に切り出してある。1タップ目は待たせず即座に選択する
-  const lastTapRef = useRef<TapState | null>(null)
+  // カレンダーのタップ（Issue #31）: 1タップで入力モーダルを直接開く。
+  // #29 でダブルタップ方式を試したが、ユーザーの希望で1タップに戻した。
+  // 選択バーは「最後に開いた日」の要約表示として残してある
   const handleCellTap = (date: string) => {
-    const now = Date.now()
-    if (classifyTap(lastTapRef.current, date, now) === 'open') {
-      lastTapRef.current = null
-      openDay(date)
-    } else {
-      lastTapRef.current = { date, at: now }
-      setPickedDate(date)
-    }
+    openDay(date)
   }
   const openDay = (date: string) => {
     setPickedDate(date)
