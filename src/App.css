@@ -168,3 +168,6 @@ font-size: 12px; cursor: pointer; padding: 4px 2px; min-height: 28px;
 .settings label { margin-top: 10px;}
 
 .app-footer { text-align: center; color: var(--muted); font-size: 12px;}
+
+/* ヘッダーのロゴ内ではマスコットを小さく静止表示する */
+.logo .mascot { width: 32px; height: 32px; animation: none; }

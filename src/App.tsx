@@ -157,7 +157,7 @@ URL.revokeObjectURL(url)
 return (
 <main className="app">
 <header className="app-header">
-<div className="logo">🌱</div>
+<div className="logo"><Mascot level={mascot.level} /></div>
 <div>
 <h1>ShiftCraft</h1>
 <p>まるまると一緒に貯めよう</p>
