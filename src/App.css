@@ -1,0 +1,10 @@
+.app { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; font-family: system-ui, sans-serif; }
+.card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 16px 0; display: grid; gap: 10px; }
+.card label { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.card input { padding: 6px 8px; }
+.card button { padding: 8px 14px; cursor: pointer; }
+.shifts { list-style: none; padding: 0; display: grid; gap: 8px; }
+.shifts li { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.total { font-weight: 700; font-size: 1.1rem; }
+.preview { color: #555; }
+@media (prefers-color-scheme: dark) { .card { border-color: #444; } .preview { color: #aaa; } }
