@@ -13,7 +13,7 @@
  * - 日付タップでモーダルが開き、その日の確認と入力ができる（Issue #13）
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { calculatePay, formatMinutes, formatYen, type ShiftInput } from './lib/pay'
 import { goalProgress } from './lib/goal'
@@ -77,6 +77,32 @@ function formatDateLabel(date: string): string {
   return `${d.getMonth() + 1}月${d.getDate()}日（${d.toLocaleDateString('ja-JP', { weekday: 'short' })}）`
 }
 
+/** 数字をなめらかに増減させるフック（Issue #19）: 合計金額のカウントアップ用。
+ * requestAnimationFrame で「前の値→目標値」をイージングしながら補間する */
+function useAnimatedNumber(target: number, duration = 500): number {
+  const [display, setDisplay] = useState(target)
+  const prevRef = useRef(target)
+  useEffect(() => {
+    const from = prevRef.current
+    prevRef.current = target
+    if (from === target) {
+      setDisplay(target)
+      return
+    }
+    let raf = 0
+    const start = performance.now()
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - start) / duration)
+      const eased = 1 - Math.pow(1 - p, 3) // 最初速く、最後ゆっくり（easeOutCubic）
+      setDisplay(Math.round(from + (target - from) * eased))
+      if (p < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [target, duration])
+  return display
+}
+
 /** 表示中のページ。ルーターなしで state 切り替えする（Issue #12） */
 type Page = 'calendar' | 'summary' | 'workplaces' | 'settings'
 const PAGE_TITLES: Record<Page, string> = {
@@ -102,6 +128,8 @@ const [actuals, setActuals] = useState<ActualRecord[]>(() => load(ACTUALS_KEY, [
 const [repeatCount, setRepeatCount] = useState(1)
 const [repeatNote, setRepeatNote] = useState('')
   const [page, setPage] = useState<Page>('calendar')
+// 月移動アニメーションの方向（Issue #19）
+const [slideDir, setSlideDir] = useState<'next' | 'prev' | ''>('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [dayModalOpen, setDayModalOpen] = useState(false)
   const [errors, setErrors] = useState<string[]>([])
@@ -152,6 +180,7 @@ return { hourlyWage: wp.hourlyWage, transportPerShift: resolveTransport(wp, s.tr
   const totalMinutes = rows.reduce((sum, r) => sum + r.pay.workMinutes, 0)
   // 「あと何時間」の換算は先頭のバイト先の時給を代表値として使う
   const goal = goalProgress(total, goalYen, workplaces[0]?.hourlyWage ?? 0)
+const animatedTotal = useAnimatedNumber(total)
   const preview = calculatePay(form, settingsOf(form))
   // 入力中の内容と重なる既存シフト（Issue #9）。入力のたびに再計算される
   const formOverlaps = form.date && form.start && form.end ? findOverlaps(form, shifts) : []
@@ -277,18 +306,20 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
         <>
           {/* 今月のサマリーは1行だけ（詳細は集計ページへ） */}
           <div className="summary-line">
-            <span>{viewYM.month}月の見込み <strong>{formatYen(total)}</strong></span>
+            <span>{viewYM.month}月の見込み <strong>{formatYen(animatedTotal)}</strong></span>
             <span className="summary-goal">目標 {goal.progressPercent}%</span>
           </div>
           <div className="goal-bar mini"><div className="goal-fill" style={{ width: `${goal.progressPercent}%` }} /></div>
 
           <section className="card cal-card">
             <div className="card-head">
-              <button className="nav-btn" aria-label="前の月" onClick={() => setViewYM((v) => shiftMonth(v.year, v.month, -1))}>‹</button>
+              <button className="nav-btn" aria-label="前の月" onClick={() => { setSlideDir('prev'); setViewYM((v) => shiftMonth(v.year, v.month, -1)) }}>‹</button>
               <h2>{viewYM.year}年{viewYM.month}月</h2>
-              <button className="nav-btn" aria-label="次の月" onClick={() => setViewYM((v) => shiftMonth(v.year, v.month, 1))}>›</button>
+              <button className="nav-btn" aria-label="次の月" onClick={() => { setSlideDir('next'); setViewYM((v) => shiftMonth(v.year, v.month, 1)) }}>›</button>
             </div>
-            <div className="cal-week">
+            {/* 月が変わるたびに key が変わって再マウントされ、スライドアニメーションが再生される */}
+<div key={monthKey} className={`cal-anim${slideDir ? ` slide-${slideDir}` : ''}`}>
+<div className="cal-week">
               {['日', '月', '火', '水', '木', '金', '土'].map((w, i) => (<span key={w} className={i === 0 ? 'sun' : i === 6 ? 'sat' : ''}>{w}</span>))}
             </div>
             <div className="cal-grid fill">
@@ -313,15 +344,16 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                 ),
               )}
             </div>
+</div>
           </section>
         </>
       )}
 
       {/* ===== ページ: 集計 ===== */}
       {page === 'summary' && (
-        <section className="card page-card">
+        <section className="card page-card page-anim">
           <h2>{viewYM.year}年{viewYM.month}月の集計</h2>
-          <p className="page-total">{formatYen(total)}</p>
+          <p className="page-total">{formatYen(animatedTotal)}</p>
           <p className="page-sub">実働 {formatMinutes(totalMinutes)} ・ {rows.length}件のシフト</p>
           <div className="hero-goal">
             <div className="hero-goal-head">
@@ -395,7 +427,7 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
 
       {/* ===== ページ: バイト先 ===== */}
       {page === 'workplaces' && (
-        <section className="card page-card">
+        <section className="card page-card page-anim">
           <h2>バイト先の管理</h2>
           {workplaces.map((w) => (
             <div key={w.id} className="wp-editor" style={{ borderLeft: `6px solid ${workplaceColor(workplaces, w.id)}` }}>
@@ -466,7 +498,7 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
 
       {/* ===== ページ: 設定 ===== */}
       {page === 'settings' && (
-        <section className="card page-card">
+        <section className="card page-card page-anim">
           <h2>設定</h2>
           <label className="field">
             <span>目標金額（円）</span>
@@ -488,8 +520,8 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
 
             {pickedRows.length > 0 && (
               <ul className="modal-shifts">
-                {pickedRows.map((r) => (
-                  <li key={r.id} className="modal-shift">
+                {pickedRows.map((r, i) => (
+                  <li key={r.id} className="modal-shift item-anim" style={{ animationDelay: `${i * 60}ms` }}>
                     <span className="wp-dot" style={{ background: workplaceColor(workplaces, r.workplaceId) }} />
                     <span className="modal-shift-main">{r.workplaceName} {r.start}–{r.end}</span>
                     <strong>{formatYen(r.pay.totalPay)}</strong>
