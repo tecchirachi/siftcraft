@@ -26,7 +26,7 @@ import { migrateWorkplaces, resolveWorkplace, summarizeByWorkplace, workplaceCol
 // 時間の重なり判定（Issue #9）
 import { findOverlaps } from './lib/overlap'
 // 入力候補（オートコンプリート）（Issue #11）
-import { frequentPatterns, uniqueSuggestions } from './lib/suggest'
+import { frequentPatterns, stepTime, uniqueSuggestions } from './lib/suggest'
 // 明細照合・繰り返し登録・支給期間（Issue #15, #16, #17）
 import { comparePay } from './lib/check'
 import { weeklyDates } from './lib/repeat'
@@ -201,12 +201,34 @@ const animatedTotal = useAnimatedNumber(total)
     setPage(p)
     setMenuOpen(false)
   }
+  // そのバイト先の最頻パターン（無ければ undefined）
+  const topPatternOf = (workplaceId: string | undefined) =>
+    workplaceId
+      ? frequentPatterns(shifts, workplaceId, (sh) => resolveWorkplace(workplaces, sh.workplaceId).id)[0]
+      : undefined
   const openDay = (date: string) => {
     setPickedDate(date)
-    setForm((f) => ({ ...f, date }))
+    // プリフィル（Issue #20）: 開いた時点で前回のバイト先＋その最頻パターンを入れておき、
+    // 多くの場合は「追加」を押すだけで登録できるようにする
+    setForm((f) => {
+      const top = topPatternOf(f.workplaceId ?? workplaces[0]?.id)
+      return top ? { ...f, date, start: top.start, end: top.end, breakMinutes: top.breakMinutes } : { ...f, date }
+    })
     setErrors([])
     setOverlapAck('')
     setDayModalOpen(true)
+  }
+  // シフトの内容をフォームにコピーする（Issue #20）: 別日へ同じ内容を1タップで登録するため
+  const copyShiftToForm = (src: ShiftForm) => {
+    setForm((f) => ({
+      ...f,
+      workplaceId: src.workplaceId,
+      start: src.start,
+      end: src.end,
+      breakMinutes: src.breakMinutes,
+      transportOverride: src.transportOverride,
+    }))
+    setOverlapAck('')
   }
   const addShift = () => {
     const errs = validateShift(form)
@@ -386,13 +408,18 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                   <div key={t.workplace.id} className="check-row">
                     <span className="check-name"><span className="wp-dot" style={{ background: workplaceColor(workplaces, t.workplace.id) }} />{t.workplace.name}</span>
                     <span className="check-expected">見込み {formatYen(t.totalPay)}</span>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      placeholder="実際の支給額"
-                      value={actual ?? ''}
-                      onChange={(e) => setActual(t.workplace.id, e.target.value === '' ? null : Number(e.target.value))}
-                    />
+                    <span className="check-input">
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        placeholder="実際の支給額"
+                        value={actual ?? ''}
+                        onChange={(e) => setActual(t.workplace.id, e.target.value === '' ? null : Number(e.target.value))}
+                      />
+                      {/* 打たずに調整できるステッパー（Issue #20）: 未入力なら見込み額を起点にする */}
+                      <button type="button" className="step-btn small" onClick={() => setActual(t.workplace.id, Math.max(0, (actual ?? t.totalPay) - 500))}>−500</button>
+                      <button type="button" className="step-btn small" onClick={() => setActual(t.workplace.id, (actual ?? t.totalPay) + 500)}>＋500</button>
+                    </span>
                     <span className={`check-diff ${result.status}`}>
                       {result.status === 'unset' && '未入力'}
                       {result.status === 'match' && '一致しました'}
@@ -439,6 +466,10 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                 <label className="field">
                   <span>時給（円）</span>
                   <input type="number" inputMode="numeric" value={w.hourlyWage} onChange={(e) => updateWorkplace(w.id, { hourlyWage: Number(e.target.value) })} />
+                  <span className="step-row">
+                    <button type="button" className="step-btn" onClick={() => updateWorkplace(w.id, { hourlyWage: Math.max(0, w.hourlyWage - 100) })}>−100</button>
+                    <button type="button" className="step-btn" onClick={() => updateWorkplace(w.id, { hourlyWage: w.hourlyWage + 100 })}>＋100</button>
+                  </span>
                 </label>
                 {/* 交通費の方式（Issue #18）: 方式に応じて下の入力が切り替わる */}
                 <label className="field">
@@ -455,12 +486,20 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                 <label className="field">
                   <span>交通費 / 1勤務（円）</span>
                   <input type="number" inputMode="numeric" value={w.transportPerShift} onChange={(e) => updateWorkplace(w.id, { transportPerShift: Number(e.target.value) })} />
+                  <span className="step-row">
+                    <button type="button" className="step-btn" onClick={() => updateWorkplace(w.id, { transportPerShift: Math.max(0, w.transportPerShift - 100) })}>−100</button>
+                    <button type="button" className="step-btn" onClick={() => updateWorkplace(w.id, { transportPerShift: w.transportPerShift + 100 })}>＋100</button>
+                  </span>
                 </label>
               )}
               {(w.transportMode ?? 'fixed') === 'roundTrip' && (
                 <label className="field">
                   <span>片道運賃（円）</span>
                   <input type="number" inputMode="numeric" value={w.transportOneWay ?? 0} onChange={(e) => updateWorkplace(w.id, { transportOneWay: Number(e.target.value) })} />
+                  <span className="step-row">
+                    <button type="button" className="step-btn" onClick={() => updateWorkplace(w.id, { transportOneWay: Math.max(0, (w.transportOneWay ?? 0) - 10) })}>−10</button>
+                    <button type="button" className="step-btn" onClick={() => updateWorkplace(w.id, { transportOneWay: (w.transportOneWay ?? 0) + 10 })}>＋10</button>
+                  </span>
                 </label>
               )}
               {((w.transportMode ?? 'fixed') === 'pass' || (w.transportMode ?? 'fixed') === 'none') && (
@@ -503,6 +542,10 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
           <label className="field">
             <span>目標金額（円）</span>
             <input type="number" inputMode="numeric" value={goalYen} onChange={(e) => setGoalYen(Number(e.target.value))} />
+            <span className="step-row">
+              <button type="button" className="step-btn" onClick={() => setGoalYen(Math.max(0, goalYen - 1000))}>−1000</button>
+              <button type="button" className="step-btn" onClick={() => setGoalYen(goalYen + 1000)}>＋1000</button>
+            </span>
           </label>
           <p className="page-note">目標はカレンダー上部の進捗と、集計ページの詳細に使われます。</p>
           <p className="page-note">データはこの端末のブラウザの中だけに保存されます。サーバーには送信されません。</p>
@@ -525,6 +568,7 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                     <span className="wp-dot" style={{ background: workplaceColor(workplaces, r.workplaceId) }} />
                     <span className="modal-shift-main">{r.workplaceName} {r.start}–{r.end}</span>
                     <strong>{formatYen(r.pay.totalPay)}</strong>
+                    <button className="copy-btn" onClick={() => copyShiftToForm(r)}>コピー</button>
                     <button className="delete-btn" onClick={() => removeShift(r.id)}>削除</button>
                   </li>
                 ))}
@@ -532,9 +576,17 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
             )}
 
             <div className="modal-form">
+              {shifts.length > 0 && (
+                <button className="copy-last-btn" onClick={() => copyShiftToForm(shifts[shifts.length - 1])}>前回のシフトをコピー</button>
+              )}
               <label className="field">
                 <span>バイト先</span>
-                <select value={wpOf(form).id} onChange={(e) => setForm({ ...form, workplaceId: e.target.value })}>
+                <select value={wpOf(form).id} onChange={(e) => {
+                  // バイト先を切り替えたら、そのバイト先の最頻パターンを自動で反映する（Issue #20）
+                  const id = e.target.value
+                  const top = topPatternOf(id)
+                  setForm((f) => (top ? { ...f, workplaceId: id, start: top.start, end: top.end, breakMinutes: top.breakMinutes } : { ...f, workplaceId: id }))
+                }}>
                   {workplaces.map((w) => (<option key={w.id} value={w.id}>{w.name}（時給 {formatYen(w.hourlyWage)}）</option>))}
                 </select>
               </label>
@@ -557,20 +609,33 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                 <label className="field">
                   <span>開始</span>
                   <input type="time" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} />
+                  <span className="step-row">
+                    <button type="button" className="step-btn" onClick={() => setForm({ ...form, start: stepTime(form.start, -15) })}>−15分</button>
+                    <button type="button" className="step-btn" onClick={() => setForm({ ...form, start: stepTime(form.start, 15) })}>＋15分</button>
+                  </span>
                 </label>
                 <span className="field-arrow">→</span>
                 <label className="field">
                   <span>終了</span>
                   <input type="time" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} />
+                  <span className="step-row">
+                    <button type="button" className="step-btn" onClick={() => setForm({ ...form, end: stepTime(form.end, -15) })}>−15分</button>
+                    <button type="button" className="step-btn" onClick={() => setForm({ ...form, end: stepTime(form.end, 15) })}>＋15分</button>
+                  </span>
                 </label>
               </div>
               {/* 休憩と繰り返しは毎回は触らないので折りたたみの中（Issue #14, #16） */}
               <details className="modal-details">
-                <summary>休憩・繰り返しを変更する</summary>
-                <label className="field">
+                <summary>休憩・繰り返し・交通費を変更する</summary>
+                <div className="field">
                   <span>休憩（分）</span>
+                  <span className="pattern-row">
+                    {[0, 30, 45, 60].map((m) => (
+                      <button key={m} type="button" className={`pattern-chip${form.breakMinutes === m ? ' active' : ''}`} onClick={() => setForm({ ...form, breakMinutes: m })}>{m}分</button>
+                    ))}
+                  </span>
                   <input type="number" inputMode="numeric" value={form.breakMinutes} onChange={(e) => setForm({ ...form, breakMinutes: Number(e.target.value) })} />
-                </label>
+                </div>
                 <label className="field">
                   <span>繰り返し（同じ曜日）</span>
                   <select value={repeatCount} onChange={(e) => setRepeatCount(Number(e.target.value))}>
@@ -581,8 +646,12 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                   </select>
                 </label>
                 {/* その日だけ交通費が違う場合の上書き（空欄ならバイト先の方式どおり）（Issue #18） */}
-                <label className="field">
+                <div className="field">
                   <span>交通費（円・任意）</span>
+                  <span className="pattern-row">
+                    <button type="button" className={`pattern-chip${form.transportOverride === undefined ? ' active' : ''}`} onClick={() => setForm({ ...form, transportOverride: undefined })}>設定どおり</button>
+                    <button type="button" className={`pattern-chip${form.transportOverride === 0 ? ' active' : ''}`} onClick={() => setForm({ ...form, transportOverride: 0 })}>0円</button>
+                  </span>
                   <input
                     type="number"
                     inputMode="numeric"
@@ -590,7 +659,7 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                     value={form.transportOverride ?? ''}
                     onChange={(e) => setForm({ ...form, transportOverride: e.target.value === '' ? undefined : Number(e.target.value) })}
                   />
-                </label>
+                </div>
               </details>
               <p className="preview">見込み <strong>{formatYen(preview.totalPay)}</strong>（実働 {formatMinutes(preview.workMinutes)}）</p>
               {formOverlaps.length > 0 && (

@@ -391,3 +391,46 @@ button:active { transform: scale(0.97); }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ===== タイピング削減（Issue #20）【学習用解説】
+ * 打たずにタップで調整するための部品群: ステッパーとチップの選択状態 */
+.step-row { display: flex; gap: 6px; margin-top: 6px; }
+.step-btn {
+  flex: 1;
+  min-height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fffdf8;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.step-btn.small { flex: none; padding: 0 10px; min-height: 38px; }
+.pattern-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.copy-btn {
+  border: none;
+  background: none;
+  color: var(--accent-dark);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 2px;
+  white-space: nowrap;
+}
+.copy-last-btn {
+  min-height: 38px;
+  border-radius: 999px;
+  border: 1px dashed var(--accent);
+  background: rgba(255, 158, 110, 0.1);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.check-input { display: flex; gap: 6px; align-items: center; }
+.check-input input { flex: 1; min-width: 0; }

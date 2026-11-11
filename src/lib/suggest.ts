@@ -61,3 +61,16 @@ if (t) seen.add(t)
 }
 return [...seen]
 }
+
+/**
+ * 時刻を ±分 ずらす（Issue #20）【学習用解説】
+ * 「17:00」のような文字列を分に直して加減し、24時間で一周させて戻す。
+ * ±15分ボタンから呼ばれ、打たずに時刻を調整できるようにするための部品。
+ */
+export function stepTime(time: string, deltaMinutes: number): string {
+  const [h, m] = time.split(':').map(Number)
+  const total = (((h * 60 + m + deltaMinutes) % 1440) + 1440) % 1440
+  const hh = String(Math.floor(total / 60)).padStart(2, '0')
+  const mm = String(total % 60).padStart(2, '0')
+  return `${hh}:${mm}`
+}

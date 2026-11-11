@@ -2,7 +2,7 @@
 * 入力候補ロジックのテスト
 */
 import { describe, it, expect} from 'vitest'
-import { frequentPatterns, uniqueSuggestions} from './suggest'
+import { frequentPatterns, stepTime, uniqueSuggestions } from './suggest'
 import type { StoredShift } from './suggest'
 
 const sh = (id: string, workplaceId: string | undefined, start: string, end: string, breakMinutes = 0): StoredShift => ({
@@ -46,4 +46,15 @@ describe('uniqueSuggestions', () => {
 it('重複と空文字を取り除く', () => {
 expect(uniqueSuggestions(['駅前', ' 駅前 ', '', undefined, '本店'])).toEqual(['駅前', '本店'])
 })
+})
+
+describe('stepTime（Issue #20）', () => {
+  it('±15分でずらせる', () => {
+    expect(stepTime('17:00', 15)).toBe('17:15')
+    expect(stepTime('17:00', -15)).toBe('16:45')
+  })
+  it('日をまたいでも24時間で一周する', () => {
+    expect(stepTime('23:45', 15)).toBe('00:00')
+    expect(stepTime('00:00', -15)).toBe('23:45')
+  })
 })
