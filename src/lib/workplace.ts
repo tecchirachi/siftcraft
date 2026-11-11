@@ -84,3 +84,26 @@ map.set(wp.id, cur)
 }
 return [...map.values()].sort((a, b) => b.totalPay - a.totalPay)
 }
+
+/**
+ * バイト先の識別色【学習用】(Issue #8)
+ * バイト先ごとにパレットから色を割り当てる。割り当ては「一覧の並び順」で
+ * 決めるので、同じバイト先はいつも同じ色になる。色自体はデータに保存しない
+ * （並びが変われば色も変わりうる割り切り。識別用なので十分という判断）
+ */
+export const WORKPLACE_COLORS = [
+  '#ff9e6e', // ピーチ
+  '#5aa9e6', // 青
+  '#66bb8a', // 緑
+  '#f2b134', // 黄
+  '#b388eb', // 紫
+  '#ef6f6c', // 赤
+  '#4fb3bf', // 水色
+  '#e08dac', // ピンク
+]
+
+export function workplaceColor(workplaces: Workplace[], id: string | undefined): string {
+  const wp = resolveWorkplace(workplaces, id)
+  const index = workplaces.findIndex((w) => w.id === wp.id)
+  return WORKPLACE_COLORS[Math.max(0, index) % WORKPLACE_COLORS.length]
+}

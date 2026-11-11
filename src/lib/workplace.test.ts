@@ -2,7 +2,7 @@
 * バイト先ロジックのテスト
 */
 import { describe, it, expect} from 'vitest'
-import { migrateWorkplaces, resolveWorkplace, summarizeByWorkplace, type Workplace} from './workplace'
+import { migrateWorkplaces, resolveWorkplace, summarizeByWorkplace, workplaceColor, WORKPLACE_COLORS, type Workplace } from './workplace'
 
 const legacy = { hourlyWage: 1200, transportPerShift: 500}
 const wps: Workplace[] = [
@@ -58,4 +58,16 @@ it('workplaceIdが無い行はデフォルト（先頭）に集まる', () => {
 const totals = summarizeByWorkplace([{ totalPay: 1000, workMinutes: 60}], wps)
 expect(totals[0].workplace.id).toBe('a')
 })
+})
+
+describe('workplaceColor', () => {
+  it('並び順で色が決まり、同じバイト先はいつも同じ色', () => {
+    expect(workplaceColor(wps, 'a')).toBe(WORKPLACE_COLORS[0])
+    expect(workplaceColor(wps, 'b')).toBe(WORKPLACE_COLORS[1])
+    expect(workplaceColor(wps, 'a')).toBe(workplaceColor(wps, 'a'))
+  })
+
+  it('見つからないIDは先頭の色にフォールバック', () => {
+    expect(workplaceColor(wps, 'nope')).toBe(WORKPLACE_COLORS[0])
+  })
 })

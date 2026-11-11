@@ -22,7 +22,9 @@ import { validateShift} from './lib/validate'
 // 予定表（カレンダー）のロジック（Issue #6）
 import { buildMonthGrid, groupByDate, shiftMonth } from './lib/calendar'
 // バイト先（複数登録）のロジック（Issue #7）
-import { migrateWorkplaces, resolveWorkplace, summarizeByWorkplace, workplaceToSettings, type Workplace } from './lib/workplace'
+import { migrateWorkplaces, resolveWorkplace, summarizeByWorkplace, workplaceColor, workplaceToSettings, type Workplace } from './lib/workplace'
+// 時間の重なり判定（Issue #9）
+import { findOverlaps } from './lib/overlap'
 /** 保存・一覧表示に使う「ID付きのシフト」 */
 /** フォームとシフト共通の形: 入力項目 + 選んだバイト先のID */
 interface ShiftForm extends ShiftInput {
@@ -69,6 +71,8 @@ const [shifts, setShifts] = useState<ShiftRecord[]>(() => load(SHIFTS_KEY, []))
 const [selectedMonth, setSelectedMonth] = useState('')
 const [goalYen, setGoalYen] = useState<number>(() => load(GOAL_KEY, 80000))
 const [errors, setErrors] = useState<string[]>([])
+// 重なり警告を「確認済み」にするための署名（フォーム内容+相手のID）
+const [overlapAck, setOverlapAck] = useState('')
 // 予定表で表示中の年月と、タップで選ばれた日（Issue #6）
 const now = new Date()
 const [viewYM, setViewYM] = useState({ year: now.getFullYear(), month: now.getMonth()+ 1})
@@ -107,6 +111,9 @@ const totalMinutes = rows.reduce((sum, r) => sum + r.pay.workMinutes, 0)
 // 「あと何時間」の換算は先頭のバイト先の時給を代表値として使う
 const goal = goalProgress(total, goalYen, workplaces[0]?.hourlyWage?? 0)
 const preview = calculatePay(form, settingsOf(form))
+// 入力中の内容と重なる既存シフト（Issue #9）。入力のたびに再計算される
+const formOverlaps = form.date && form.start && form.end? findOverlaps(form, shifts): []
+const overlapSig = JSON.stringify([form, formOverlaps.map((s) => s.id)])
 const periodLabel = selectedMonth? `${selectedMonth.replace('-', '年')}月`: '全期間'
 // 予定表用: 表示月のマス並びと、日付ごとにまとめたシフト（金額つき）
 const calGrid = buildMonthGrid(viewYM.year, viewYM.month)
@@ -119,6 +126,12 @@ const addShift = () => {
 const errs = validateShift(form)
 setErrors(errs)
 if (errs.length > 0) return
+// 時間が重なる場合はまず警告だけ出して止め、同じ内容でもう一度押されたら登録する
+if (formOverlaps.length > 0 && overlapAck!== overlapSig) {
+setOverlapAck(overlapSig)
+return
+}
+setOverlapAck('')
 setShifts((prev) => [...prev, {...form, id: crypto.randomUUID()}])
 }
 const removeShift = (id: string) => setShifts((prev) => prev.filter((s) => s.id!== id))
@@ -210,7 +223,8 @@ setForm((f) => ({...f, date: cell.date}))
 const dayRows = calByDate.get(cell.date)
 if (!dayRows) return null
 const sum = dayRows.reduce((a, r) => a + r.pay.totalPay, 0)
-return (<><span className="cal-dots">{'●'.repeat(Math.min(3, dayRows.length))}</span><span className="cal-yen">{formatYen(sum)}</span></>)
+const colors = [...new Set(dayRows.map((r) => workplaceColor(workplaces, r.workplaceId)))]
+return (<><span className="cal-dots">{colors.map((c) => (<span key={c} className="cal-dot" style={{ background: c}} />))}</span><span className="cal-yen">{formatYen(sum)}</span></>)
 })()}
 </button>
 ),
@@ -256,6 +270,12 @@ pickedRows.map((r) => (<span key={r.id}>{r.workplaceName} {r.start}–{r.end} / 
 <input type="number" inputMode="numeric" value={form.breakMinutes} onChange={(e) => setForm({...form, breakMinutes: Number(e.target.value)})} />
 </label>
 <p className="preview">見込み: 実働 {formatMinutes(preview.workMinutes)} / <strong>{formatYen(preview.totalPay)}</strong>（交通費込み）</p>
+{formOverlaps.length > 0 && (
+<p className="warn-note">⚠ 時間が重なっています: {formOverlaps.map((s) => `${s.date.slice(5)} ${s.start}–${s.end}（${wpOf(s).name}）`).join('、')}</p>
+)}
+{formOverlaps.length > 0 && overlapAck === overlapSig && (
+<p className="warn-box">このまま登録しますか？ もう一度「＋ シフトを追加」を押すと登録します。</p>
+)}
 {errors.length > 0 && (
 <ul className="errors">{errors.map((e) => (<li key={e}>{e}</li>))}</ul>
 )}
@@ -282,7 +302,7 @@ return (
 <div className="shift-main">
 <span className="shift-time">{shift.start} – {shift.end}</span>
 <span className="shift-meta">
-{wpOf(shift).name}・実働 {formatMinutes(pay.workMinutes)}・休憩{shift.breakMinutes}分
+<span className="wp-dot" style={{ background: workplaceColor(workplaces, shift.workplaceId)}} />{wpOf(shift).name}・実働 {formatMinutes(pay.workMinutes)}・休憩{shift.breakMinutes}分
 {overtime > 0 && <span className="chip">残業 {formatMinutes(overtime)}</span>}
 {lateNight > 0 && <span className="chip night">深夜 {formatMinutes(lateNight)}</span>}
 </span>
@@ -300,7 +320,7 @@ return (
 <div className="wp-totals">
 <span className="wp-totals-title">バイト先別の合計（{periodLabel}）</span>
 {wpTotals.map((t) => (
-<span key={t.workplace.id} className="wp-total-line">{t.workplace.name}: {formatYen(t.totalPay)}（{t.count}件・{formatMinutes(t.workMinutes)}）</span>
+<span key={t.workplace.id} className="wp-total-line"><span className="wp-dot" style={{ background: workplaceColor(workplaces, t.workplace.id)}} />{t.workplace.name}: {formatYen(t.totalPay)}（{t.count}件・{formatMinutes(t.workMinutes)}）</span>
 ))}
 </div>
 )}
@@ -310,7 +330,7 @@ return (
 <details className="card settings">
 <summary>バイト先と目標の設定</summary>
 {workplaces.map((w) => (
-<div key={w.id} className="wp-editor">
+<div key={w.id} className="wp-editor" style={{ borderLeft: `6px solid ${workplaceColor(workplaces, w.id)}`}}>
 <label className="field">
 <span>バイト先の名前</span>
 <input type="text" value={w.name} onChange={(e) => updateWorkplace(w.id, { name: e.target.value})} />

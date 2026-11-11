@@ -195,3 +195,24 @@ font-size: 13px; cursor: pointer; padding: 4px 2px; min-height: 28px;
 }
 .field-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .field input[type="text"] { font-size: 16px; }
+
+/* 色分けと警告（Issue #8, #9） */
+.wp-dot {
+  display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  margin-right: 5px; vertical-align: baseline;
+}
+.cal-dots { display: inline-flex; gap: 3px; line-height: 1; }
+.cal-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.warn-note {
+  margin: 0; font-size: 14px; font-weight: 700; color: #b26a00;
+  background: rgba(242, 177, 52, 0.16); border-radius: 12px; padding: 8px 12px;
+}
+.warn-box {
+  margin: 0; font-size: 14px; font-weight: 700; color: #8a5200;
+  background: rgba(242, 177, 52, 0.3); border: 1px solid #f2b134;
+  border-radius: 12px; padding: 10px 12px;
+}
+@media (prefers-color-scheme: dark) {
+  .warn-note { color: #ffd88a; }
+  .warn-box { color: #ffe1a3; }
+}
