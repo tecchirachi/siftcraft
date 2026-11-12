@@ -683,3 +683,11 @@ button:active { transform: scale(0.97); }
 button.badge-card {
   font: inherit; color: inherit; text-align: left; border: none; cursor: pointer; width: 100%;
 }
+
+/* 編集モード（Issue #37）: 編集中の行の強調とバナー */
+.modal-shift.editing { outline: 2px solid var(--primary); outline-offset: -2px; }
+.edit-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--primary-container); color: var(--on-primary-container);
+  border-radius: 12px; padding: 8px 12px; font-size: 14px; font-weight: 700;
+}

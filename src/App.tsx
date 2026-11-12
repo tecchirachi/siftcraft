@@ -45,6 +45,8 @@ import {
   type Appearance,
 } from './lib/appearance'
 import { tapAction } from './lib/tap'
+// シフト編集（Issue #37）
+import { replaceShift } from './lib/editshift'
 import {
   CELEBRATED_KEY,
   diffCelebrations,
@@ -182,6 +184,9 @@ const [slideDir, setSlideDir] = useState<'next' | 'prev' | ''>('')
   const [errors, setErrors] = useState<string[]>([])
   // 重なり警告を「確認済み」にするための署名（フォーム内容+相手のID）（Issue #9）
   const [overlapAck, setOverlapAck] = useState('')
+  // 編集中のシフトのID（nullなら通常の追加モード）（Issue #37）
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editNote, setEditNote] = useState('')
   // 予定表で表示中の年月と、タップで選ばれた日（Issue #6）
   const now = new Date()
   const [viewYM, setViewYM] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 })
@@ -278,7 +283,10 @@ return { hourlyWage: wp.hourlyWage, transportPerShift: resolveTransport(wp, s.tr
 const animatedTotal = useAnimatedNumber(total)
   const preview = calculatePay(form, settingsOf(form))
   // 入力中の内容と重なる既存シフト（Issue #9）。入力のたびに再計算される
-  const formOverlaps = form.date && form.start && form.end ? findOverlaps(form, shifts) : []
+  // 編集中は自分自身を相手から除く（Issue #37）: 除かないと常に「自分と重なる」と出てしまう
+  const formOverlaps = form.date && form.start && form.end
+    ? findOverlaps(form, shifts.filter((s) => s.id !== editingId))
+    : []
   const overlapSig = JSON.stringify([form, formOverlaps.map((s) => s.id)])
   // 予定表用: 表示月のマス並びと、日付ごとにまとめたシフト（金額つき）
   const calGrid = buildMonthGrid(viewYM.year, viewYM.month)
@@ -320,10 +328,13 @@ const animatedTotal = useAnimatedNumber(total)
     })
     setErrors([])
     setOverlapAck('')
+    setEditingId(null)
+    setEditNote('')
     setDayModalOpen(true)
   }
   // シフトの内容をフォームにコピーする（Issue #20）: 別日へ同じ内容を1タップで登録するため
   const copyShiftToForm = (src: ShiftForm) => {
+    setEditingId(null) // コピーは「新規登録」が目的なので編集モードは解除する
     setForm((f) => ({
       ...f,
       workplaceId: src.workplaceId,
@@ -334,11 +345,49 @@ const animatedTotal = useAnimatedNumber(total)
     }))
     setOverlapAck('')
   }
+  // 編集モードに入る（Issue #37）: 既存シフトの内容をそのままフォームに読み込む
+  const startEdit = (r: ShiftRecord) => {
+    setEditingId(r.id)
+    setForm({
+      date: r.date,
+      start: r.start,
+      end: r.end,
+      breakMinutes: r.breakMinutes,
+      workplaceId: wpOf(r).id,
+      transportOverride: r.transportOverride,
+    })
+    setErrors([])
+    setOverlapAck('')
+    setEditNote('')
+    setRepeatCount(1) // 編集に繰り返し登録は無いので通常モードに戻しておく
+  }
+  // 編集をやめる: フォームを開いた直後のプリフィル状態に戻す
+  const cancelEdit = () => {
+    setEditingId(null)
+    openDay(pickedDate)
+  }
   const addShift = () => {
     const errs = validateShift(form)
     setErrors(errs)
     if (errs.length > 0) return
     setRepeatNote('')
+    if (editingId) {
+      // 編集の保存（Issue #37）: 重なり確認は追加と同じ2段階。相手からは自分を除外済み
+      if (formOverlaps.length > 0 && overlapAck !== overlapSig) {
+        setOverlapAck(overlapSig)
+        return
+      }
+      setOverlapAck('')
+      setShifts((prev) => replaceShift(prev, { ...form, id: editingId }))
+      setEditingId(null)
+      setEditNote('変更を保存しました')
+      // 日付を変えた場合は、その日を表示に追いつかせる
+      if (form.date !== pickedDate) {
+        setPickedDate(form.date)
+        setViewYM({ year: Number(form.date.slice(0, 4)), month: Number(form.date.slice(5, 7)) })
+      }
+      return
+    }
     if (repeatCount <= 1) {
       // 通常登録: 時間が重なる場合はまず警告だけ出して止め、同じ内容でもう一度押されたら登録する
       if (formOverlaps.length > 0 && overlapAck !== overlapSig) {
@@ -364,7 +413,10 @@ const animatedTotal = useAnimatedNumber(total)
     setShifts((prev) => [...prev, ...added])
     setRepeatNote(`${added.length}件を追加しました${skipped > 0 ? `（重なりのため ${skipped}件スキップ）` : ''}`)
   }
-  const removeShift = (id: string) => setShifts((prev) => prev.filter((s) => s.id !== id))
+  const removeShift = (id: string) => {
+    if (id === editingId) setEditingId(null) // 編集中のシフトを消したら編集モードも終わる
+    setShifts((prev) => prev.filter((s) => s.id !== id))
+  }
 // 実績の入力: 同じバイト先×月は上書き、空欄にしたら記録を消す
 const setActual = (workplaceId: string, amount: number | null) =>
 setActuals((prev) => {
@@ -846,10 +898,11 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
             {pickedRows.length > 0 && (
               <ul className="modal-shifts">
                 {pickedRows.map((r, i) => (
-                  <li key={r.id} className="modal-shift item-anim" style={{ animationDelay: `${i * 60}ms` }}>
+                  <li key={r.id} className={`modal-shift item-anim${r.id === editingId ? ' editing' : ''}`} style={{ animationDelay: `${i * 60}ms` }}>
                     <span className="wp-dot" style={{ background: workplaceColor(workplaces, r.workplaceId) }} />
                     <span className="modal-shift-main">{r.workplaceName} {r.start}–{r.end}</span>
                     <strong>{formatYen(r.pay.totalPay)}</strong>
+                    <button className="copy-btn" onClick={() => startEdit(r)}>編集</button>
                     <button className="copy-btn" onClick={() => copyShiftToForm(r)}>コピー</button>
                     <button className="delete-btn" onClick={() => removeShift(r.id)}>削除</button>
                   </li>
@@ -858,14 +911,33 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
             )}
 
             <div className="modal-form">
-              {shifts.length > 0 && (
+              {editingId && (
+                <div className="edit-banner">
+                  <span>
+                    編集中：{(() => { const o = shifts.find((s) => s.id === editingId); return o ? `${formatDateLabel(o.date)} ${o.start}–${o.end}（${wpOf(o).name}）` : '' })()}
+                  </span>
+                  <button type="button" className="copy-btn" onClick={cancelEdit}>編集をやめる</button>
+                </div>
+              )}
+              {shifts.length > 0 && !editingId && (
                 <button className="copy-last-btn" onClick={() => copyShiftToForm(shifts[shifts.length - 1])}>前回のシフトをコピー</button>
+              )}
+              {editingId && (
+                <label className="field">
+                  <span>日付</span>
+                  <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+                </label>
               )}
               <label className="field">
                 <span>バイト先</span>
                 <select value={wpOf(form).id} onChange={(e) => {
                   // バイト先を切り替えたら、そのバイト先の最頻パターンを自動で反映する（Issue #20）
+                  // ただし編集中は時刻を勝手に変えると事故るので、バイト先だけ変える（Issue #37）
                   const id = e.target.value
+                  if (editingId) {
+                    setForm((f) => ({ ...f, workplaceId: id }))
+                    return
+                  }
                   const top = topPatternOf(id)
                   setForm((f) => (top ? { ...f, workplaceId: id, start: top.start, end: top.end, breakMinutes: top.breakMinutes } : { ...f, workplaceId: id }))
                 }}>
@@ -918,6 +990,7 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                   </span>
                   <input type="number" inputMode="numeric" value={form.breakMinutes} onChange={(e) => setForm({ ...form, breakMinutes: Number(e.target.value) })} />
                 </div>
+                {!editingId && (
                 <label className="field">
                   <span>繰り返し（同じ曜日）</span>
                   <select value={repeatCount} onChange={(e) => setRepeatCount(Number(e.target.value))}>
@@ -927,6 +1000,7 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                     <option value={12}>毎週 × 12回</option>
                   </select>
                 </label>
+                )}
                 {/* その日だけ交通費が違う場合の上書き（空欄ならバイト先の方式どおり）（Issue #18） */}
                 <div className="field">
                   <span>交通費（円・任意）</span>
@@ -948,13 +1022,16 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                 <p className="warn-note">⚠ 時間が重なっています: {formOverlaps.map((s) => `${s.date.slice(5)} ${s.start}–${s.end}（${wpOf(s).name}）`).join('、')}</p>
               )}
               {formOverlaps.length > 0 && overlapAck === overlapSig && (
-                <p className="warn-box">このまま登録しますか？ もう一度「＋ この日に追加」を押すと登録します。</p>
+                <p className="warn-box">{editingId
+                  ? 'このまま保存しますか？ もう一度「変更を保存」を押すと保存します。'
+                  : 'このまま登録しますか？ もう一度「＋ この日に追加」を押すと登録します。'}</p>
               )}
               {errors.length > 0 && (
                 <ul className="errors">{errors.map((e) => (<li key={e}>{e}</li>))}</ul>
               )}
-              <button className="primary-btn" onClick={addShift}>＋ この日に追加</button>
+              <button className="primary-btn" onClick={addShift}>{editingId ? '変更を保存' : '＋ この日に追加'}</button>
               {repeatNote && (<p className="ok-note">{repeatNote}</p>)}
+              {editNote && (<p className="ok-note">{editNote}</p>)}
             </div>
           </div>
         </div>
