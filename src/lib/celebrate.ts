@@ -20,7 +20,17 @@ export interface CelebratedState {
 
 export type Celebration =
   | { kind: 'level'; level: number; title: string }
-  | { kind: 'badge'; name: string; mark: string; tier: number; tierName: string }
+  | {
+      kind: 'badge'
+      name: string
+      mark: string
+      tier: number
+      tierName: string
+      /** true=到達済みの演出、false=未到達のプレビュー（Issue #35） */
+      achieved: boolean
+      /** 未到達プレビュー用（例: あと9件で シルバー） */
+      progressText?: string
+    }
 
 export const CELEBRATED_KEY = 'shiftcraft:celebrated'
 
@@ -38,7 +48,9 @@ export function diffCelebrations(
   for (const b of badges) {
     const before = prev.tiers[b.id] ?? 0
     if (b.tier > before && b.tierName) {
-      events.push({ kind: 'badge', name: b.name, mark: b.mark, tier: b.tier, tierName: b.tierName })
+      events.push({
+        kind: 'badge', name: b.name, mark: b.mark, tier: b.tier, tierName: b.tierName, achieved: true,
+      })
     }
   }
   return events

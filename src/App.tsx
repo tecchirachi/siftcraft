@@ -35,7 +35,7 @@ import { periodFor } from './lib/payperiod'
 import { resolveTransport, type TransportMode } from './lib/transport'
 // レベル・ポイント・テーマ（Issue #21）
 import { levelOf, pointsBalance, pointsEarnedOf, THEMES, themeById } from './lib/game'
-import { evaluateBadges, TIER_BONUS_POINTS, TIER_COLORS, totalTiers } from './lib/badge'
+import { evaluateBadges, TIER_BONUS_POINTS, TIER_COLORS, TIER_NAMES, totalTiers } from './lib/badge'
 import {
   APPEARANCE_KEY,
   APPEARANCE_OPTIONS,
@@ -723,7 +723,26 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
           <span className="wp-totals-title">実績（合計 {totalTiers(badgeStatuses)} ティア ・ ボーナス +{badgeBonus} P）</span>
           <div className="badge-grid">
             {badgeStatuses.map((s) => (
-              <div key={s.id} className="badge-card">
+              <button
+                key={s.id}
+                type="button"
+                className="badge-card"
+                onClick={() =>
+                  // 実績タップで演出を再生（Issue #35）。未到達はグレーのプレビュー
+                  setCelebrations((q) => [
+                    ...q,
+                    s.tier > 0 && s.tierName
+                      ? {
+                          kind: 'badge', name: s.name, mark: s.mark, tier: s.tier,
+                          tierName: s.tierName, achieved: true,
+                        }
+                      : {
+                          kind: 'badge', name: s.name, mark: s.mark, tier: 1,
+                          tierName: TIER_NAMES[0], achieved: false, progressText: s.progressText,
+                        },
+                  ])
+                }
+              >
                 {/* メダル表示（Issue #33）: ティア色の円盤＋リボン */}
                 <span className="badge-medal">
                   <span
@@ -747,9 +766,10 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                   <span className="badge-bar-fill" style={{ width: `${s.segmentPercent}%` }} />
                 </span>
                 <span className="badge-state">{s.progressText}</span>
-              </div>
+              </button>
             ))}
           </div>
+          <p className="page-note">実績をタップすると、解除の演出を再生します。</p>
           <span className="wp-totals-title">UIテーマ（ポイントで解放）</span>
           <div className="theme-grid">
             {THEMES.map((t) => {
@@ -966,7 +986,11 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
               <>
                 <div
                   className="celebrate-medal"
-                  style={{ '--medal': TIER_COLORS[celebrations[0].tier - 1] } as CSSProperties}
+                  style={{
+                    '--medal': celebrations[0].achieved
+                      ? TIER_COLORS[celebrations[0].tier - 1]
+                      : '#9aa5ad',
+                  } as CSSProperties}
                 >
                   <span className="celebrate-medal-face">{celebrations[0].mark}</span>
                 </div>
@@ -978,7 +1002,9 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                   ))}
                 </div>
                 <div className="celebrate-sub">
-                  実績「{celebrations[0].name}」 {celebrations[0].tierName} 達成！
+                  {celebrations[0].achieved
+                    ? `実績「${celebrations[0].name}」 ${celebrations[0].tierName} 達成！`
+                    : `未到達 ・ ${celebrations[0].progressText ?? ''}`}
                 </div>
               </>
             )}

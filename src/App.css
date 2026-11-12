@@ -669,3 +669,8 @@ button:active { transform: scale(0.97); }
   100% { opacity: 1; transform: scale(1); }
 }
 @keyframes celeb-spin { to { transform: rotate(360deg); } }
+
+/* 実績カードのボタン化（Issue #35）: button の初期スタイルを消して div と同じ見た目に */
+button.badge-card {
+  font: inherit; color: inherit; text-align: left; border: none; cursor: pointer; width: 100%;
+}
