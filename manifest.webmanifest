@@ -1,14 +1,1 @@
-{
-  "name": "ShiftCraft - シフト・給料計算",
-  "short_name": "ShiftCraft",
-  "description": "バイトのシフトと給料（深夜・残業割増込み）を計算するアプリ",
-  "lang": "ja",
-  "start_url": ".",
-  "scope": ".",
-  "display": "standalone",
-  "background_color": "#fff7ec",
-  "theme_color": "#ff9e6e",
-  "icons": [
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
-  ]
-}
+{"background_color":"#fff7ec","description":"バイトのシフトと給料（深夜・残業割増込み）を計算するアプリ","display":"standalone","icons":[{"purpose":"any","sizes":"any","src":"icon.svg","type":"image/svg+xml"},{"purpose":"any","sizes":"192x192","src":"icon-192.png","type":"image/png"},{"purpose":"any","sizes":"512x512","src":"icon-512.png","type":"image/png"},{"purpose":"maskable","sizes":"512x512","src":"icon-maskable-512.png","type":"image/png"}],"lang":"ja","name":"ShiftCraft - シフト・給料計算","scope":".","short_name":"ShiftCraft","start_url":".","theme_color":"#ff9e6e"}
