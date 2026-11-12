@@ -47,6 +47,8 @@ import {
 import { tapAction } from './lib/tap'
 // シフト編集（Issue #37）
 import { replaceShift } from './lib/editshift'
+// バックアップ/復元（Issue #38）
+import { parseBackup, serializeBackup, type BackupData } from './lib/backup'
 import {
   CELEBRATED_KEY,
   diffCelebrations,
@@ -187,6 +189,10 @@ const [slideDir, setSlideDir] = useState<'next' | 'prev' | ''>('')
   // 編集中のシフトのID（nullなら通常の追加モード）（Issue #37）
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editNote, setEditNote] = useState('')
+  // バックアップ/復元（Issue #38）: 結果メッセージと、確認待ちの復元データ
+  const [backupMsg, setBackupMsg] = useState('')
+  const [pendingRestore, setPendingRestore] = useState<BackupData | null>(null)
+  const [pendingSummary, setPendingSummary] = useState({ workplaces: 0, shifts: 0 })
   // 予定表で表示中の年月と、タップで選ばれた日（Issue #6）
   const now = new Date()
   const [viewYM, setViewYM] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 })
@@ -416,6 +422,60 @@ const animatedTotal = useAnimatedNumber(total)
   const removeShift = (id: string) => {
     if (id === editingId) setEditingId(null) // 編集中のシフトを消したら編集モードも終わる
     setShifts((prev) => prev.filter((s) => s.id !== id))
+  }
+  // バックアップの書き出し（Issue #38）: 全データをJSONファイルとしてダウンロードする
+  const exportBackup = () => {
+    const data: BackupData = {
+      workplaces,
+      shifts,
+      goalYen,
+      actuals,
+      themeId,
+      unlockedThemes,
+      appearance,
+      celebrated: load<CelebratedState | null>(CELEBRATED_KEY, null),
+    }
+    const text = serializeBackup(data, new Date().toISOString())
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `shiftcraft-backup-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    setBackupMsg('バックアップファイルを書き出しました')
+  }
+  // バックアップファイルが選ばれたら、まず検証だけして確認を出す（すぐには置き換えない）
+  const onBackupFile = (file: File | undefined) => {
+    if (!file) return
+    file.text().then((text) => {
+      const r = parseBackup(text)
+      if (r.ok) {
+        setPendingRestore(r.data)
+        setPendingSummary(r.summary)
+        setBackupMsg('')
+      } else {
+        setPendingRestore(null)
+        setBackupMsg(r.error)
+      }
+    })
+  }
+  // 復元の確定: 全データをバックアップの内容で置き換える
+  const applyRestore = () => {
+    if (!pendingRestore) return
+    setWorkplaces(pendingRestore.workplaces)
+    setShifts(pendingRestore.shifts)
+    setGoalYen(pendingRestore.goalYen)
+    setActuals(pendingRestore.actuals)
+    setThemeId(pendingRestore.themeId)
+    setUnlockedThemes(pendingRestore.unlockedThemes)
+    setAppearance(pendingRestore.appearance)
+    if (pendingRestore.celebrated) {
+      localStorage.setItem(CELEBRATED_KEY, JSON.stringify(pendingRestore.celebrated))
+    } else {
+      localStorage.removeItem(CELEBRATED_KEY)
+    }
+    setPendingRestore(null)
+    setBackupMsg('バックアップから復元しました')
   }
 // 実績の入力: 同じバイト先×月は上書き、空欄にしたら記録を消す
 const setActual = (workplaceId: string, amount: number | null) =>
@@ -882,6 +942,36 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
             </span>
           </div>
           <p className="page-note">ダークを選ぶと、どのテーマでも暗い配色になります（色はテーマから自動で作ります）。</p>
+          {/* バックアップ/復元（Issue #38）: 端末の中だけのデータの保険 */}
+          <div className="field">
+            <span>データのバックアップ</span>
+            <span className="pattern-row">
+              <button type="button" className="ghost-btn" onClick={exportBackup}>ファイルに書き出す</button>
+              <label className="ghost-btn file-label">
+                ファイルから復元する
+                <input
+                  type="file"
+                  accept="application/json,.json"
+                  hidden
+                  onChange={(e) => {
+                    onBackupFile(e.target.files?.[0])
+                    e.target.value = '' // 同じファイルを選び直せるようにリセット
+                  }}
+                />
+              </label>
+            </span>
+          </div>
+          <p className="page-note">機種変更やブラウザのデータ削除に備えるためのものです。復元すると、今のデータはバックアップの内容で置き換わります。</p>
+          {pendingRestore && (
+            <div className="restore-box">
+              <span>このバックアップを復元しますか？（バイト先 {pendingSummary.workplaces}件 ・ シフト {pendingSummary.shifts}件）</span>
+              <span className="pattern-row">
+                <button type="button" className="ghost-btn" onClick={applyRestore}>この内容で復元する</button>
+                <button type="button" className="copy-btn" onClick={() => setPendingRestore(null)}>やめる</button>
+              </span>
+            </div>
+          )}
+          {backupMsg && (<p className="ok-note">{backupMsg}</p>)}
           <p className="page-note">データはこの端末のブラウザの中だけに保存されます。サーバーには送信されません。</p>
         </section>
       )}

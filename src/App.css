@@ -691,3 +691,11 @@ button.badge-card {
   background: var(--primary-container); color: var(--on-primary-container);
   border-radius: 12px; padding: 8px 12px; font-size: 14px; font-weight: 700;
 }
+
+/* バックアップ/復元（Issue #38） */
+label.file-label { cursor: pointer; display: inline-flex; align-items: center; }
+.restore-box {
+  background: var(--surface-container); border: 1px solid var(--border);
+  border-radius: 16px; padding: 12px 14px; display: grid; gap: 8px;
+  font-size: 14px; font-weight: 700;
+}
