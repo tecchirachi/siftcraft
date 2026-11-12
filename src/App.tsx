@@ -49,6 +49,8 @@ import { tapAction } from './lib/tap'
 import { replaceShift } from './lib/editshift'
 // バックアップ/復元（Issue #38）
 import { parseBackup, serializeBackup, type BackupData } from './lib/backup'
+// 週の労働時間チェック（Issue #40）
+import { summarizeWeeks, weeksInMonth } from './lib/weekhours'
 import {
   CELEBRATED_KEY,
   diffCelebrations,
@@ -277,6 +279,11 @@ return { hourlyWage: wp.hourlyWage, transportPerShift: resolveTransport(wp, s.tr
     const p = calculatePay(sh, settingsOf(sh))
     return { date: sh.date, taxablePay: p.totalPay - p.transportPay }
   })
+  // 週の労働時間（Issue #40）: 日曜始まりの週ごとに実働を合計する
+  const weekSummaries = summarizeWeeks(
+    shifts.map((sh) => ({ date: sh.date, workMinutes: calculatePay(sh, settingsOf(sh)).workMinutes })),
+  )
+  const monthWeeks = weeksInMonth(weekSummaries, viewYM.year, viewYM.month)
   const year = viewYM.year
   const yTotal = yearTotal(yearEntries, year)
   const yMonthly = monthlyTotals(yearEntries, year)
@@ -566,6 +573,12 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
             <span className="level-bar"><span className="level-fill" style={{ width: `${levelInfo.progressPercent}%` }} /></span>
             <span className="level-points">{points} P</span>
           </button>
+          {/* 週40時間の注意（Issue #40）: 表示中の月に超過した週があれば知らせる */}
+          {monthWeeks.some((w) => w.over) && (
+            <button className="week-warn-line" onClick={() => goPage('summary')}>
+              ⚠ 週40時間を超えた週があります（集計で確認）
+            </button>
+          )}
 
           <section className="card cal-card">
             <div className="card-head">
@@ -693,6 +706,19 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
               )
             })}
           </div>
+          {/* 週の労働時間（Issue #40）: 日曜始まりの週ごとの実働と40時間チェック */}
+          {monthWeeks.length > 0 && (
+            <div className="check-block">
+              <span className="wp-totals-title">週の労働時間（法定の目安は週40時間）</span>
+              {monthWeeks.map((w) => (
+                <span key={w.weekStart} className={`wp-total-line${w.over ? ' week-over' : ''}`}>
+                  {w.weekStart.slice(5).replace('-', '/')}〜{w.weekEnd.slice(5).replace('-', '/')}: 実働 {formatMinutes(w.totalMinutes)}
+                  {w.over && <strong className="week-over-tag">40時間を超えています</strong>}
+                </span>
+              ))}
+              <p className="page-note">週はカレンダーと同じ日曜始まりで数えています。法律上の区切りは勤務先の規則で異なる場合があるので、働きすぎに気づくための目安として使ってください。</p>
+            </div>
+          )}
           {/* 年間収入トラッカー（Issue #22） */}
           <div className="check-block">
             <span className="wp-totals-title">年間収入（{year}年・税金の目安）</span>
