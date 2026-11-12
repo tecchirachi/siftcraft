@@ -45,6 +45,13 @@ import {
   type Appearance,
 } from './lib/appearance'
 import { tapAction } from './lib/tap'
+import {
+  CELEBRATED_KEY,
+  diffCelebrations,
+  mergeCelebrated,
+  type Celebration,
+  type CelebratedState,
+} from './lib/celebrate'
 // 年間収入トラッカー（Issue #22）
 import { INCOME_WALLS, monthlyTotals, projectYearEnd, wallStatus, yearTotal } from './lib/year'
 
@@ -165,6 +172,8 @@ useEffect(() => {
   return () => mq.removeEventListener('change', onChange)
 }, [])
 const darkEffective = isDarkEffective(appearance, osDark)
+// 演出キュー（Issue #34）: レベルアップ・実績解除を順に表示する
+const [celebrations, setCelebrations] = useState<Celebration[]>([])
   const [page, setPage] = useState<Page>('calendar')
 // 月移動アニメーションの方向（Issue #19）
 const [slideDir, setSlideDir] = useState<'next' | 'prev' | ''>('')
@@ -236,6 +245,21 @@ return { hourlyWage: wp.hourlyWage, transportPerShift: resolveTransport(wp, s.tr
   // ティア到達はボーナスポイントになる（長期モチベーションとテーマ解放をつなぐ）
   const badgeBonus = totalTiers(badgeStatuses) * TIER_BONUS_POINTS
   const points = pointsBalance(gameStats, unlockedThemes) + badgeBonus
+  // 演出の検知（Issue #34）: 既達記録（最大値）と比べて増えた分だけ祝う。
+  // 初回は記録だけして祝わない。依存は「レベル」と「ティアの並び」の文字列に絞る
+  const badgeSig = badgeStatuses.map((s) => `${s.id}:${s.tier}`).join(',')
+  useEffect(() => {
+    const stored = load<CelebratedState | null>(CELEBRATED_KEY, null)
+    if (stored) {
+      const events = diffCelebrations(stored, levelInfo.level, levelInfo.title, badgeStatuses)
+      if (events.length > 0) setCelebrations((q) => [...q, ...events])
+    }
+    localStorage.setItem(
+      CELEBRATED_KEY,
+      JSON.stringify(mergeCelebrated(stored, levelInfo.level, badgeStatuses)),
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [levelInfo.level, badgeSig])
   const activeTheme = themeById(themeId)
   // 年間トラッカー用（Issue #22）: 交通費は非課税なので年収から除く
   const yearEntries = shifts.map((sh) => {
@@ -700,11 +724,22 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
           <div className="badge-grid">
             {badgeStatuses.map((s) => (
               <div key={s.id} className="badge-card">
-                <span
-                  className="badge-mark"
-                  style={s.tier > 0 ? { background: TIER_COLORS[s.tier - 1], color: '#fff' } : undefined}
-                >
-                  {s.mark}
+                {/* メダル表示（Issue #33）: ティア色の円盤＋リボン */}
+                <span className="badge-medal">
+                  <span
+                    className="medal-ribbon left"
+                    style={s.tier > 0 ? { background: TIER_COLORS[s.tier - 1] } : undefined}
+                  />
+                  <span
+                    className="medal-ribbon right"
+                    style={s.tier > 0 ? { background: TIER_COLORS[s.tier - 1] } : undefined}
+                  />
+                  <span
+                    className="badge-mark medal-face"
+                    style={s.tier > 0 ? { background: TIER_COLORS[s.tier - 1], color: '#fff' } : undefined}
+                  >
+                    {s.mark}
+                  </span>
                 </span>
                 <span className="badge-name">{s.name}</span>
                 <span className="badge-tier">{s.tierName ?? '未到達'} ・ {s.description}</span>
@@ -900,6 +935,55 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
               )}
               <button className="primary-btn" onClick={addShift}>＋ この日に追加</button>
               {repeatNote && (<p className="ok-note">{repeatNote}</p>)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 演出オーバーレイ（Issue #34）: キネティックタイポグラフィ。
+          大きな文字が1文字ずつ弾んで入り、メダルがポップする。タップで次へ */}
+      {celebrations.length > 0 && (
+        <div
+          className="celebrate-backdrop"
+          onClick={() => setCelebrations((q) => q.slice(1))}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="celebrate-card">
+            {celebrations[0].kind === 'level' ? (
+              <>
+                <div className="celebrate-word" aria-label="レベルアップ">
+                  {'LEVEL UP!'.split('').map((ch, i) => (
+                    <span key={i} style={{ animationDelay: `${i * 55}ms` }}>
+                      {ch === ' ' ? ' ' : ch}
+                    </span>
+                  ))}
+                </div>
+                <div className="celebrate-big">Lv.{celebrations[0].level}</div>
+                <div className="celebrate-sub">{celebrations[0].title} になりました</div>
+              </>
+            ) : (
+              <>
+                <div
+                  className="celebrate-medal"
+                  style={{ '--medal': TIER_COLORS[celebrations[0].tier - 1] } as CSSProperties}
+                >
+                  <span className="celebrate-medal-face">{celebrations[0].mark}</span>
+                </div>
+                <div className="celebrate-word small" aria-label={celebrations[0].name}>
+                  {celebrations[0].name.split('').map((ch, i) => (
+                    <span key={i} style={{ animationDelay: `${i * 70}ms` }}>
+                      {ch}
+                    </span>
+                  ))}
+                </div>
+                <div className="celebrate-sub">
+                  実績「{celebrations[0].name}」 {celebrations[0].tierName} 達成！
+                </div>
+              </>
+            )}
+            <div className="celebrate-hint">
+              タップで閉じる{celebrations.length > 1 ? `（あと ${celebrations.length - 1} 件）` : ''}
             </div>
           </div>
         </div>

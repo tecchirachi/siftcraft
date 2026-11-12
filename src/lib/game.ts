@@ -47,9 +47,10 @@ return Math.floor(stats.totalWorkMinutes / 60) * 5 + stats.totalShifts * 10
 
 /**
  * 称号は7区分 × 3段階（Issue #26 で段階を増やした）。
- * 名前が変わるのは7回で、各区分の中では「見習い1 → 2 → 3」のように
+ * 名前が変わるのは9回で、各区分の中では「見習い1 → 2 → 3」のように
  * 数字が上がる。小さな達成感を細かく刻むための設計。
  * 最終区分（伝説）だけは上限なく数字が増えていく。
+ * （Issue #33 で 職人・番長 を伝説の前に追加して 7→9 区分にした）
  */
 const TITLE_NAMES = [
 'バイト見習い',
@@ -58,12 +59,14 @@ const TITLE_NAMES = [
 '頼れるバイト',
 'バイトリーダー',
 'バイトマスター',
+'バイト職人',
+'バイト番長',
 '伝説のバイト',
 ]
 
 export function titleForLevel(level: number): string {
 const band = Math.min(Math.floor((level - 1) / 3), TITLE_NAMES.length - 1)
-const step = band < TITLE_NAMES.length - 1 ? ((level - 1) % 3) + 1 : level - 18
+const step = band < TITLE_NAMES.length - 1 ? ((level - 1) % 3) + 1 : level - 24
 return `${TITLE_NAMES[band]}${step}`
 }
 

@@ -91,6 +91,14 @@ interface BadgeContext {
   weekStreak: number
   goalMonths: number
   bestYearIncome: number
+  /** 累計収入（交通費を除く）— Issue #33 */
+  totalIncome: number
+  /** 単月の最高収入（交通費を除く）— Issue #33 */
+  bestMonthIncome: number
+  /** 1日の最長勤務（時間・切り捨て）— Issue #33 */
+  longestShiftHours: number
+  /** 土日のシフト回数 — Issue #33 */
+  weekendCount: number
 }
 
 /** 日付文字列を「日番号」に変える（週の連続判定用。UTC基準でずれない） */
@@ -160,6 +168,26 @@ const CATEGORIES: CategoryDef[] = [
     thresholds: [100000, 300000, 500000, 800000, 1000000, 1500000, 1780000, 2000000],
     format: yen, valueOf: (c) => c.bestYearIncome,
   },
+  {
+    id: 'totalIncome', mark: '★', name: '累計収入', description: 'これまでの収入（交通費を除く）の合計',
+    thresholds: [100000, 300000, 500000, 800000, 1000000, 1500000, 2000000, 3000000],
+    format: yen, valueOf: (c) => c.totalIncome,
+  },
+  {
+    id: 'bestMonth', mark: '月', name: '単月最高', description: '1か月の収入（交通費を除く）の最高記録',
+    thresholds: [30000, 50000, 80000, 100000, 150000, 200000, 250000, 300000],
+    format: yen, valueOf: (c) => c.bestMonthIncome,
+  },
+  {
+    id: 'longest', mark: '長', name: '最長勤務', description: '1日の実働時間の最長記録',
+    thresholds: [4, 6, 8, 10, 12, 14, 16, 18],
+    format: (v) => `${v}時間`, valueOf: (c) => c.longestShiftHours,
+  },
+  {
+    id: 'weekend', mark: '週', name: '週末シフト', description: '土日に入ったシフトの回数',
+    thresholds: [1, 5, 10, 25, 50, 100, 150, 200],
+    format: (v) => `${v}回`, valueOf: (c) => c.weekendCount,
+  },
 ]
 
 /**
@@ -168,6 +196,7 @@ const CATEGORIES: CategoryDef[] = [
  */
 export function evaluateBadges(entries: BadgeEntry[], goalAmount: number): BadgeStatus[] {
   const byMonth = new Map<string, number>()
+  const byMonthTaxable = new Map<string, number>()
   const byYear = new Map<string, number>()
   let lateNightMinutes = 0
   let overtimeMinutes = 0
@@ -176,8 +205,10 @@ export function evaluateBadges(entries: BadgeEntry[], goalAmount: number): Badge
     overtimeMinutes += e.pay.overtimeMinutes + e.pay.overtimeLateNightMinutes
     const mk = e.shift.date.slice(0, 7)
     byMonth.set(mk, (byMonth.get(mk) ?? 0) + e.pay.totalPay)
+    const taxable = e.pay.totalPay - e.pay.transportPay
+    byMonthTaxable.set(mk, (byMonthTaxable.get(mk) ?? 0) + taxable)
     const yk = e.shift.date.slice(0, 4)
-    byYear.set(yk, (byYear.get(yk) ?? 0) + (e.pay.totalPay - e.pay.transportPay))
+    byYear.set(yk, (byYear.get(yk) ?? 0) + taxable)
   }
   const ctx: BadgeContext = {
     count: entries.length,
@@ -190,6 +221,16 @@ export function evaluateBadges(entries: BadgeEntry[], goalAmount: number): Badge
     goalMonths:
       goalAmount > 0 ? [...byMonth.values()].filter((v) => v >= goalAmount).length : 0,
     bestYearIncome: Math.max(0, ...byYear.values()),
+    totalIncome: [...byYear.values()].reduce((a, v) => a + v, 0),
+    bestMonthIncome: Math.max(0, ...byMonthTaxable.values()),
+    longestShiftHours: Math.floor(
+      entries.reduce((a, e) => Math.max(a, e.pay.workMinutes), 0) / 60,
+    ),
+    // 土日判定: 日番号0（1970-01-01）は木曜。 (dayNumber + 4) % 7 で 0=日曜〜6=土曜
+    weekendCount: entries.filter((e) => {
+      const wd = (dayNumber(e.shift.date) + 4) % 7
+      return wd === 0 || wd === 6
+    }).length,
   }
 
   return CATEGORIES.map((def) => {

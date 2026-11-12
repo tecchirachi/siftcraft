@@ -33,7 +33,7 @@ function byId(entries: BadgeEntry[], goal = 80000) {
 describe('evaluateBadges（ティア制）', () => {
   it('空なら全カテゴリ ティア0', () => {
     const statuses = evaluateBadges([], 80000)
-    expect(statuses).toHaveLength(9)
+    expect(statuses).toHaveLength(13)
     expect(statuses.every((s) => s.tier === 0 && s.tierName === null)).toBe(true)
     expect(totalTiers(statuses)).toBe(0)
   })
@@ -105,5 +105,46 @@ describe('evaluateBadges（ティア制）', () => {
     const s = byId(many).get('shifts')
     expect(s?.tier).toBe(2)
     expect(s?.segmentPercent).toBe(33)
+  })
+})
+
+describe('evaluateBadges（Issue #33 の追加カテゴリ）', () => {
+  it('累計収入: 年をまたいでも合計され、交通費は除かれる', () => {
+    const m = byId([
+      entry('2025-12-01', '17:00', { totalPay: 90000, transportPay: 10000 }),
+      entry('2026-01-05', '17:00', { totalPay: 50000 }),
+    ])
+    // 課税対象の合計 = 80000 + 50000 = 130,000 → 10万円超でティア1
+    expect(m.get('totalIncome')?.value).toBe(130000)
+    expect(m.get('totalIncome')?.tier).toBe(1)
+  })
+
+  it('単月最高: 月ごとの課税対象の最大値', () => {
+    const m = byId([
+      entry('2026-10-05', '17:00', { totalPay: 40000 }),
+      entry('2026-11-02', '17:00', { totalPay: 55000 }),
+      entry('2026-11-09', '17:00', { totalPay: 10000 }),
+    ])
+    expect(m.get('bestMonth')?.value).toBe(65000)
+    expect(m.get('bestMonth')?.tier).toBe(2) // 5万円超
+  })
+
+  it('最長勤務: 実働の最大（時間・切り捨て）', () => {
+    const m = byId([
+      entry('2026-11-02', '17:00', { workMinutes: 240 }),
+      entry('2026-11-03', '17:00', { workMinutes: 659 }),
+    ])
+    expect(m.get('longest')?.value).toBe(10)
+    expect(m.get('longest')?.tier).toBe(4) // 10時間到達
+  })
+
+  it('週末シフト: 土日だけ数える（2026-11-07は土曜、08は日曜、09は月曜）', () => {
+    const m = byId([
+      entry('2026-11-07'),
+      entry('2026-11-08'),
+      entry('2026-11-09'),
+    ])
+    expect(m.get('weekend')?.value).toBe(2)
+    expect(m.get('weekend')?.tier).toBe(1)
   })
 })
