@@ -203,7 +203,7 @@ const [slideDir, setSlideDir] = useState<'next' | 'prev' | ''>('')
     date: new Date().toISOString().slice(0, 10),
     start: '09:00',
     end: '17:00',
-    breakMinutes: 60,
+    breakMinutes: 0, // 休憩は最初は「なし」。あるときだけ本人が入れる
     workplaceId: undefined, // 未選択なら先頭のバイト先として解決される
   })
 
@@ -333,11 +333,14 @@ const animatedTotal = useAnimatedNumber(total)
   }
   const openDay = (date: string) => {
     setPickedDate(date)
-    // プリフィル（Issue #20）: 開いた時点で前回のバイト先＋その最頻パターンを入れておき、
-    // 多くの場合は「追加」を押すだけで登録できるようにする
+    // プリフィル（Issue #20）: 開いた時点で前回のバイト先＋その最頻パターン（時刻だけ）を
+    // 入れておき、多くの場合は「追加」を押すだけで登録できるようにする。
+    // 休憩は自動で入れない: 短いバイトは休憩なしも多いので、毎回 0 から本人が入れる
     setForm((f) => {
       const top = topPatternOf(f.workplaceId ?? workplaces[0]?.id)
-      return top ? { ...f, date, start: top.start, end: top.end, breakMinutes: top.breakMinutes } : { ...f, date }
+      return top
+        ? { ...f, date, start: top.start, end: top.end, breakMinutes: 0 }
+        : { ...f, date, breakMinutes: 0 }
     })
     setErrors([])
     setOverlapAck('')
@@ -1055,22 +1058,23 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                     return
                   }
                   const top = topPatternOf(id)
-                  setForm((f) => (top ? { ...f, workplaceId: id, start: top.start, end: top.end, breakMinutes: top.breakMinutes } : { ...f, workplaceId: id }))
+                  // 反映するのは時刻だけ。休憩は本人が入れた値を勝手に変えない
+                  setForm((f) => (top ? { ...f, workplaceId: id, start: top.start, end: top.end } : { ...f, workplaceId: id }))
                 }}>
                   {workplaces.map((w) => (<option key={w.id} value={w.id}>{w.name}（時給 {formatYen(w.hourlyWage)}）</option>))}
                 </select>
               </label>
-              {/* よく使う時間帯（オートコンプリート）: タップで開始・終了・休憩を一括入力 */}
+              {/* よく使う時間帯（オートコンプリート）: タップで開始・終了だけを一括入力。休憩は含めない */}
               {patterns.length > 0 && (
                 <div className="pattern-row">
                   <span className="pattern-label">いつものパターン</span>
                   {patterns.map((p) => (
                     <button
-                      key={`${p.start}-${p.end}-${p.breakMinutes}`}
+                      key={`${p.start}-${p.end}`}
                       className="pattern-chip"
-                      onClick={() => setForm((f) => ({ ...f, start: p.start, end: p.end, breakMinutes: p.breakMinutes }))}
+                      onClick={() => setForm((f) => ({ ...f, start: p.start, end: p.end }))}
                     >
-                      {p.start}–{p.end}{p.breakMinutes > 0 ? ` 休${p.breakMinutes}` : ''}
+                      {p.start}–{p.end}
                     </button>
                   ))}
                 </div>

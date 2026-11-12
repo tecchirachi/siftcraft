@@ -15,13 +15,14 @@ export interface StoredShift extends ShiftInput {
 export interface TimePattern {
 start: string
 end: string
-breakMinutes: number
 }
 
 /**
 * そのバイト先でよく使う時間帯パターンを、使用回数の多い順に返す。
 *
-* - 開始・終了・休憩の3点セットを1パターンとして数える
+* - 開始・終了の2点セットを1パターンとして数える
+* - 休憩はパターンに含めない。短いバイトだと休憩が無いことも多いので、
+*   自動で入れてしまうと間違いのもとになる。休憩は本人が都度入力する
 * - 同点なら最近使ったものを優先する（最後に現れた位置を記録しておく）
 * - 「どのバイト先のシフトか」は resolveId 関数で解決してから渡す。
 * workplaceId 未設定の旧データの扱い（=先頭のバイト先）を呼び出し側の
@@ -36,8 +37,8 @@ limit = 4,
 const stats = new Map<string, { pattern: TimePattern; count: number; lastIndex: number}>()
 shifts.forEach((s, i) => {
 if (resolveId(s)!== workplaceId) return
-const pattern: TimePattern = { start: s.start, end: s.end, breakMinutes: s.breakMinutes}
-const key = `${pattern.start}-${pattern.end}-${pattern.breakMinutes}`
+const pattern: TimePattern = { start: s.start, end: s.end }
+const key = `${pattern.start}-${pattern.end}`
 const cur = stats.get(key)
 if (cur) {
 cur.count += 1

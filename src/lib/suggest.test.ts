@@ -27,14 +27,26 @@ sh('5', undefined, '08:00', '12:00'), // 解決すると default 行き
 it('対象のバイト先だけを集計し、頻度順に返す', () => {
 const out = frequentPatterns(shifts, 'a', resolve)
 expect(out).toEqual([
-{ start: '17:00', end: '21:00', breakMinutes: 0},
-{ start: '09:00', end: '13:00', breakMinutes: 0},
+{ start: '17:00', end: '21:00' },
+{ start: '09:00', end: '13:00' },
 ])
 })
 
 it('未設定のシフトは解決先のバイト先に数えられる', () => {
 const out = frequentPatterns(shifts, 'default', resolve)
-expect(out).toEqual([{ start: '08:00', end: '12:00', breakMinutes: 0}])
+expect(out).toEqual([{ start: '08:00', end: '12:00' }])
+})
+
+it('休憩が違っても同じ時間帯なら1パターンにまとまる（休憩は自動入力しない）', () => {
+const mixed = [
+sh('1', 'a', '17:00', '21:00', 0),
+sh('2', 'a', '17:00', '21:00', 30),
+sh('3', 'a', '09:00', '13:00', 0),
+]
+expect(frequentPatterns(mixed, 'a', resolve)).toEqual([
+{ start: '17:00', end: '21:00' },
+{ start: '09:00', end: '13:00' },
+])
 })
 
 it('limit で件数を絞れる', () => {
