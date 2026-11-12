@@ -613,9 +613,12 @@ button:active { transform: scale(0.97); }
  * 文字を1文字ずつ span に分け、animation-delay をずらして弾ませる。
  * メダルは後ろの放射リング（conic-gradient）を回しながらポップイン */
 .celebrate-backdrop {
+  /* fixed で画面（ビューポート）基準になるので、スクロール位置や
+     今いるページに関係なく常に画面の上の方に出せる（Issue #36） */
   position: fixed; inset: 0; z-index: 60;
   background: rgba(38, 28, 20, 0.55);
-  display: grid; place-items: center; padding: 20px;
+  display: grid; place-items: start center;
+  padding: calc(14px + env(safe-area-inset-top)) 20px 20px;
   animation: fade-in 0.2s ease both;
 }
 .celebrate-card {
@@ -624,6 +627,12 @@ button:active { transform: scale(0.97); }
   display: grid; justify-items: center; gap: 12px;
   max-width: 320px; width: 100%; text-align: center;
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+  /* 上から落ちてくるようにスライドイン（少し行き過ぎて戻る） */
+  animation: celeb-drop 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+}
+@keyframes celeb-drop {
+  0% { opacity: 0; transform: translateY(-46px); }
+  100% { opacity: 1; transform: none; }
 }
 .celebrate-word {
   font-size: 34px; font-weight: 900; letter-spacing: 1px;
