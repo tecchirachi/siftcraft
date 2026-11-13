@@ -34,7 +34,7 @@ import { periodFor } from './lib/payperiod'
 // 交通費の詳細設定（Issue #18）
 import { resolveTransport, type TransportMode } from './lib/transport'
 // レベル・ポイント・テーマ（Issue #21）
-import { BG_PATTERNS, levelOf, pointsBalance, pointsEarnedOf, THEMES, themeById } from './lib/game'
+import { BG_PATTERNS, levelOf, patternById, pointsBalance, pointsEarnedOf, THEMES, themeById, unlockBlockReason } from './lib/game'
 // ご褒美交換（Issue #44）
 import {
   EXCHANGES_KEY,
@@ -333,11 +333,14 @@ return { hourlyWage: wp.hourlyWage, transportPerShift: resolveTransport(wp, s.tr
   const yMaxMonth = Math.max(1, ...yMonthly)
   const yProjection = projectYearEnd(yearEntries, year, new Date().toISOString().slice(0, 10))
   const unlockTheme = (id: string) => {
+    // レベル条件とポイント条件を満たすときだけ解放できる（Issue #45）
+    if (unlockBlockReason(themeById(id), levelInfo.level, points)) return
     if (!unlockedThemes.includes(id)) setUnlockedThemes((u) => [...u, id])
     setThemeId(id)
   }
   // 背景パターンの解放（Issue #44）: テーマと同じく、解放したらすぐ適用する
   const unlockPattern = (id: string) => {
+    if (unlockBlockReason(patternById(id), levelInfo.level, points)) return
     if (!unlockedPatterns.includes(id)) setUnlockedPatterns((u) => [...u, id])
     setPatternId(id)
   }
@@ -995,7 +998,8 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
             {THEMES.map((t) => {
               const unlocked = unlockedThemes.includes(t.id)
               const active = activeTheme.id === t.id
-              const afford = points >= t.cost
+              // 解放の条件は「レベル」と「ポイント」の両方（Issue #45）
+              const block = unlockBlockReason(t, levelInfo.level, points)
               return (
                 <div key={t.id} className={`theme-card${active ? ' active' : ''}`}>
                   <span className="theme-swatches">
@@ -1003,39 +1007,49 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                     <span className="theme-swatch" style={{ background: t.swatch[1] }} />
                   </span>
                   <span className="theme-name">{t.name}</span>
+                  {!unlocked && block === 'level' && (
+                    <span className="theme-need">Lv.{t.minLevel} になると解放できます</span>
+                  )}
                   {active ? (
                     <button className="step-btn" disabled>使用中</button>
                   ) : unlocked ? (
                     <button className="step-btn" onClick={() => setThemeId(t.id)}>使う</button>
-                  ) : afford ? (
-                    <button className="step-btn" onClick={() => unlockTheme(t.id)}>{t.cost} P で解放</button>
-                  ) : (
+                  ) : block === 'level' ? (
+                    <button className="step-btn" disabled>Lv.{t.minLevel} から</button>
+                  ) : block === 'points' ? (
                     <button className="step-btn" disabled>あと {t.cost - points} P</button>
+                  ) : (
+                    <button className="step-btn" onClick={() => unlockTheme(t.id)}>{t.cost} P で解放</button>
                   )}
                 </div>
               )
             })}
           </div>
-          <p className="page-note">テーマは色の組み合わせだけを変えます。データや計算には影響しません。</p>
+          <p className="page-note">テーマは色の組み合わせだけを変えます。データや計算には影響しません。レベルが上がると解放できるテーマが増えます。</p>
           {/* 背景パターン（Issue #44）: テーマと同じ解放方式で、背景の模様を変える */}
           <span className="wp-totals-title">背景パターン（ポイントで解放）</span>
           <div className="theme-grid">
             {BG_PATTERNS.map((p) => {
               const unlocked = unlockedPatterns.includes(p.id)
               const active = patternId === p.id
-              const afford = points >= p.cost
+              const block = unlockBlockReason(p, levelInfo.level, points)
               return (
                 <div key={p.id} className={`theme-card${active ? ' active' : ''}`}>
                   <span className={`pattern-preview pattern-${p.id}`} />
                   <span className="theme-name">{p.name}</span>
+                  {!unlocked && block === 'level' && (
+                    <span className="theme-need">Lv.{p.minLevel} になると解放できます</span>
+                  )}
                   {active ? (
                     <button className="step-btn" disabled>使用中</button>
                   ) : unlocked ? (
                     <button className="step-btn" onClick={() => setPatternId(p.id)}>使う</button>
-                  ) : afford ? (
-                    <button className="step-btn" onClick={() => unlockPattern(p.id)}>{p.cost} P で解放</button>
-                  ) : (
+                  ) : block === 'level' ? (
+                    <button className="step-btn" disabled>Lv.{p.minLevel} から</button>
+                  ) : block === 'points' ? (
                     <button className="step-btn" disabled>あと {p.cost - points} P</button>
+                  ) : (
+                    <button className="step-btn" onClick={() => unlockPattern(p.id)}>{p.cost} P で解放</button>
                   )}
                 </div>
               )

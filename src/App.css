@@ -539,6 +539,8 @@ button:active { transform: scale(0.97); }
 .theme-swatches { display: flex; gap: 6px; }
 .theme-swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.18); }
 .theme-name { font-weight: 700; font-size: 15px; }
+/* レベル条件の案内（Issue #45） */
+.theme-need { font-size: 12px; color: var(--muted); font-weight: 700; }
 
 /* ===== 背景パターンとご褒美交換（Issue #44）【学習用解説】
  * 模様は画像を使わず CSS グラデーションで描く（ファイル不要・テーマの

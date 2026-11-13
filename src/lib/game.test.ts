@@ -2,7 +2,7 @@
 * レベル・ポイントのテスト
 */
 import { describe, it, expect} from 'vitest'
-import { levelOf, pointsBalance, pointsEarnedOf, titleForLevel, xpForLevel, xpOf} from './game'
+import { BG_PATTERNS, levelOf, pointsBalance, pointsEarnedOf, THEMES, titleForLevel, unlockBlockReason, xpForLevel, xpOf} from './game'
 
 describe('xp とレベル', () => {
 it('XPは 実働1時間=10、1シフト=15 で計算する', () => {
@@ -51,5 +51,21 @@ const stats = { totalWorkMinutes: 6000, totalShifts: 10} // 600P
 expect(pointsBalance(stats, [], ['dots'])).toBe(450)
 expect(pointsBalance(stats, ['mint'], ['dots', 'check'])).toBe(50)
 expect(pointsBalance(stats, [], ['none'])).toBe(600)
+})
+})
+
+describe('解放のレベル条件（Issue #45）', () => {
+it('レベルが足りなければポイントがあっても買えない', () => {
+expect(unlockBlockReason({ minLevel: 4, cost: 120 }, 3, 9999)).toBe('level')
+expect(unlockBlockReason({ minLevel: 4, cost: 120 }, 4, 100)).toBe('points')
+expect(unlockBlockReason({ minLevel: 4, cost: 120 }, 4, 120)).toBeNull()
+expect(unlockBlockReason({ minLevel: 1, cost: 0 }, 1, 0)).toBeNull()
+})
+it('テーマとパターンの必要レベルは価格順に上がっていく', () => {
+const ts = THEMES.map((t) => t.minLevel)
+expect(ts).toEqual([...ts].sort((a, b) => a - b))
+expect(THEMES[0].minLevel).toBe(1)
+const ps = BG_PATTERNS.map((p) => p.minLevel)
+expect(ps).toEqual([...ps].sort((a, b) => a - b))
 })
 })

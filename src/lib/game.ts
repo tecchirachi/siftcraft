@@ -91,6 +91,9 @@ export interface Theme {
 id: string
 name: string
 cost: number
+/** 解放に必要なレベル（Issue #45）: ポイントが貯まっていても
+ * レベルが届くまでは買えない。「働いた量」で段階的に開くための条件 */
+minLevel: number
 vars: Record<string, string>
 /** テーマカード表示用の代表色（ドット表示） */
 swatch: [string, string]
@@ -101,6 +104,7 @@ export const THEMES: Theme[] = [
 id: 'peach',
 name: 'ピーチ（標準）',
 cost: 0,
+minLevel: 1,
 vars: { '--brand': '#ff9e6e', '--brand2': '#7bc8a4', '--bg': '#fffbf5', '--surface': '#ffffff', '--border': '#ead6b9', '--accent': '#ff9e6e', '--accent-dark': '#e07f45', '--primary': '#b34a1c', '--on-primary': '#ffffff', '--primary-container': '#ffe3d3', '--on-primary-container': '#5c2e12', '--secondary-container': '#d8efdf', '--on-secondary-container': '#1f4630', '--tertiary': '#8b7bc7', '--surface-container-low': '#fff4e8', '--surface-container': '#fdeed9', '--surface-container-high': '#f7e3c8' },
 swatch: ['#ff9e6e', '#7bc8a4'],
 },
@@ -108,6 +112,7 @@ swatch: ['#ff9e6e', '#7bc8a4'],
 id: 'mint',
 name: 'ミント',
 cost: 50,
+minLevel: 2,
 vars: { '--brand': '#3fbf8f', '--brand2': '#7bc8a4', '--bg': '#f7fdf8', '--surface': '#ffffff', '--border': '#b9ddc6', '--accent': '#3fbf8f', '--accent-dark': '#2a9d74', '--primary': '#17684a', '--on-primary': '#ffffff', '--primary-container': '#d2f0e0', '--on-primary-container': '#0e3d29', '--secondary-container': '#ffe9d2', '--on-secondary-container': '#5c3a12', '--tertiary': '#e08a3c', '--surface-container-low': '#eafaf0', '--surface-container': '#dcf2e4', '--surface-container-high': '#cdeeda' },
 swatch: ['#3fbf8f', '#a5dd8e'],
 },
@@ -115,6 +120,7 @@ swatch: ['#3fbf8f', '#a5dd8e'],
 id: 'soda',
 name: 'ソーダ',
 cost: 120,
+minLevel: 4,
 vars: { '--brand': '#4fa8e0', '--brand2': '#6fd3e7', '--bg': '#f7fbff', '--surface': '#ffffff', '--border': '#bad8ef', '--accent': '#4fa8e0', '--accent-dark': '#3585c0', '--primary': '#125e99', '--on-primary': '#ffffff', '--primary-container': '#d3eafd', '--on-primary-container': '#0d3555', '--secondary-container': '#d9f2f4', '--on-secondary-container': '#12444a', '--tertiary': '#4fb3bf', '--surface-container-low': '#ebf5fd', '--surface-container': '#d9ecfa', '--surface-container-high': '#c6e2f6' },
 swatch: ['#4fa8e0', '#6fd3e7'],
 },
@@ -122,6 +128,7 @@ swatch: ['#4fa8e0', '#6fd3e7'],
 id: 'sakura',
 name: 'サクラ',
 cost: 200,
+minLevel: 6,
 vars: { '--brand': '#f28bb4', '--brand2': '#f7b8cd', '--bg': '#fff9fb', '--surface': '#ffffff', '--border': '#efc2d3', '--accent': '#f28bb4', '--accent-dark': '#d96b97', '--primary': '#b03a72', '--on-primary': '#ffffff', '--primary-container': '#ffdfea', '--on-primary-container': '#57162f', '--secondary-container': '#e6f4e3', '--on-secondary-container': '#274a20', '--tertiary': '#7bc8a4', '--surface-container-low': '#fdf0f4', '--surface-container': '#fbe0ea', '--surface-container-high': '#f6cede' },
 swatch: ['#f28bb4', '#f7b8cd'],
 },
@@ -129,6 +136,7 @@ swatch: ['#f28bb4', '#f7b8cd'],
 id: 'yoru',
 name: 'ヨル（ダーク）',
 cost: 300,
+minLevel: 8,
 vars: { '--brand': '#8f7fe8', '--brand2': '#5fc9b8', '--bg': '#1f1b2e', '--surface': '#2c2742', '--border': '#463f63', '--accent': '#8f7fe8', '--accent-dark': '#b3a6f5', '--text': '#f2ecff', '--muted': '#c4bce0', '--primary': '#b3a6f5', '--on-primary': '#2a2140', '--primary-container': '#463a75', '--on-primary-container': '#e9e2ff', '--secondary-container': '#274a44', '--on-secondary-container': '#c2f0e6', '--tertiary': '#5fc9b8', '--surface-container-low': '#2c2742', '--surface-container': '#362f52', '--surface-container-high': '#403863' },
 swatch: ['#8f7fe8', '#5fc9b8'],
 },
@@ -136,6 +144,7 @@ swatch: ['#8f7fe8', '#5fc9b8'],
 id: 'gold',
 name: 'ゴールド',
 cost: 400,
+minLevel: 10,
 vars: { '--brand': '#e3a008', '--brand2': '#f2c94c', '--bg': '#fffdf4', '--surface': '#ffffff', '--border': '#e5cd8a', '--accent': '#e3a008', '--accent-dark': '#b97e04', '--primary': '#96690a', '--on-primary': '#ffffff', '--primary-container': '#ffedb8', '--on-primary-container': '#4d3402', '--secondary-container': '#fdeeda', '--on-secondary-container': '#5c3412', '--tertiary': '#e07f45', '--surface-container-low': '#fdf6e0', '--surface-container': '#fbeecb', '--surface-container-high': '#f5e0a4' },
 swatch: ['#e3a008', '#f2c94c'],
 },
@@ -143,6 +152,7 @@ swatch: ['#e3a008', '#f2c94c'],
 id: 'lavender',
 name: 'ラベンダー',
 cost: 500,
+minLevel: 12,
 vars: { '--brand': '#a78bda', '--brand2': '#f2a7c3', '--bg': '#faf8ff', '--surface': '#ffffff', '--border': '#d9cdf0', '--accent': '#a78bda', '--accent-dark': '#7d5fc0', '--primary': '#5b3ea8', '--on-primary': '#ffffff', '--primary-container': '#e7defa', '--on-primary-container': '#2e1a5e', '--secondary-container': '#fde4ef', '--on-secondary-container': '#5e2438', '--tertiary': '#f28bb4', '--surface-container-low': '#f3eefc', '--surface-container': '#e9e1f8', '--surface-container-high': '#ddd0f2' },
 swatch: ['#a78bda', '#f2a7c3'],
 },
@@ -150,6 +160,7 @@ swatch: ['#a78bda', '#f2a7c3'],
 id: 'matcha',
 name: 'マッチャ',
 cost: 650,
+minLevel: 14,
 vars: { '--brand': '#9ab86a', '--brand2': '#e3c878', '--bg': '#fbfcf5', '--surface': '#ffffff', '--border': '#d3ddb4', '--accent': '#9ab86a', '--accent-dark': '#6d8f3e', '--primary': '#476b1d', '--on-primary': '#ffffff', '--primary-container': '#e4efcd', '--on-primary-container': '#2c4710', '--secondary-container': '#fdf0cd', '--on-secondary-container': '#5c430c', '--tertiary': '#e08a3c', '--surface-container-low': '#f2f6e4', '--surface-container': '#e6eed2', '--surface-container-high': '#d8e4ba' },
 swatch: ['#9ab86a', '#e3c878'],
 },
@@ -164,13 +175,15 @@ export interface BgPattern {
 id: string
 name: string
 cost: number
+/** 解放に必要なレベル（Issue #45、テーマと同じ考え方） */
+minLevel: number
 }
 
 export const BG_PATTERNS: BgPattern[] = [
-{ id: 'none', name: 'なし（標準）', cost: 0 },
-{ id: 'dots', name: 'ドット', cost: 150 },
-{ id: 'stripe', name: 'ストライプ', cost: 250 },
-{ id: 'check', name: 'チェック', cost: 350 },
+{ id: 'none', name: 'なし（標準）', cost: 0, minLevel: 1 },
+{ id: 'dots', name: 'ドット', cost: 150, minLevel: 3 },
+{ id: 'stripe', name: 'ストライプ', cost: 250, minLevel: 5 },
+{ id: 'check', name: 'チェック', cost: 350, minLevel: 7 },
 ]
 
 export function patternById(id: string): BgPattern {
@@ -195,4 +208,19 @@ unlockedPatternIds: string[] = [],
 const themeSpent = THEMES.filter((t) => unlockedThemeIds.includes(t.id)).reduce((a, t) => a + t.cost, 0)
 const patternSpent = BG_PATTERNS.filter((p) => unlockedPatternIds.includes(p.id)).reduce((a, p) => a + p.cost, 0)
 return pointsEarnedOf(stats) - themeSpent - patternSpent
+}
+
+/**
+ * 解放を止める理由（Issue #45）。null なら解放できる。
+ * 先にレベル、次にポイントを見る（レベルが足りないうちは
+ * ポイント表示で惑わさないため）。
+ */
+export function unlockBlockReason(
+item: { minLevel: number; cost: number },
+level: number,
+points: number,
+): 'level' | 'points' | null {
+if (level < item.minLevel) return 'level'
+if (points < item.cost) return 'points'
+return null
 }
