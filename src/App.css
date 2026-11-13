@@ -229,6 +229,28 @@ font-size: 13px; cursor: pointer; padding: 4px 2px; min-height: 28px;
 .is-dark .warn-note { color: #ffd88a; }
 .is-dark .warn-box { color: #ffe1a3; }
 
+/* ダーク時の色付き文字（Issue #43）【学習用解説】
+ * 基本の文字色（--text / --muted）は DARK_OVERRIDES で明るくしてあるが、
+ * 「意味を持った色文字」はライト前提の濃い色のまま残っていて、暗い面に
+ * 沈んで読みにくかった。ダークのときだけ、同じ意味のまま明るい色へ
+ * 差し替える。テーマで変わる色（--danger / --accent-dark）は固定色に
+ * せず color-mix で白と混ぜて持ち上げる（どのテーマでも効くように） */
+.is-dark .cal-week .sun { color: #ff9d8f; }
+.is-dark .cal-week .sat { color: #8fc1ff; }
+.is-dark .errors,
+.is-dark .delete-btn,
+.is-dark .check-diff.under,
+.is-dark .wall-state.over { color: color-mix(in srgb, var(--danger) 55%, #ffffff); }
+.is-dark .check-diff.match,
+.is-dark .ok-note { color: #5ec98f; }
+.is-dark .check-diff.over { color: #8fc1ff; }
+.is-dark .wall-state.caution { color: #ffd88a; }
+.is-dark .copy-btn,
+.is-dark .badge-state { color: color-mix(in srgb, var(--accent-dark) 55%, #ffffff); }
+.is-dark .week-warn-line { color: #ffd88a; }
+.is-dark .week-over { color: #ff9d8f; }
+.is-dark .week-over-tag { color: #ff9d8f; }
+
 /* カレンダー中心レイアウト（Issue #10）/ モーダル（Issue #13）/ 入力候補（Issue #11） */
 .hero.compact { padding: 18px 20px; border-radius: 24px; }
 .hero.compact .hero-amount { font-size: 34px; }
