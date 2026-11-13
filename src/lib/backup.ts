@@ -21,6 +21,7 @@
 import type { Appearance } from './appearance'
 import type { CelebratedState } from './celebrate'
 import type { ShiftInput } from './pay'
+import { isValidExchange, isValidReward, type Exchange, type RewardDef } from './rewards'
 import type { Workplace } from './workplace'
 
 /** バックアップ1件分のシフト（ShiftInput + id + バイト先） */
@@ -47,6 +48,12 @@ export interface BackupData {
   unlockedThemes: string[]
   appearance: Appearance
   celebrated: CelebratedState | null
+  /** 背景パターン（Issue #44）。古いバックアップには無いので復元時に補う */
+  patternId: string
+  unlockedPatterns: string[]
+  /** ご褒美と交換履歴（Issue #44） */
+  rewards: RewardDef[]
+  exchanges: Exchange[]
 }
 
 export const BACKUP_VERSION = 1
@@ -132,6 +139,14 @@ export function parseBackup(text: string): ParseResult {
     ? d.unlockedThemes.filter((t): t is string => typeof t === 'string')
     : []
   if (!unlockedThemes.includes('peach')) unlockedThemes.unshift('peach')
+  // パターンとご褒美は Issue #44 で追加。古いバックアップには含まれない
+  // ので、欠けていたら既定値（パターンなし・ご褒美なし）で補う
+  const unlockedPatterns = Array.isArray(d.unlockedPatterns)
+    ? d.unlockedPatterns.filter((t): t is string => typeof t === 'string')
+    : []
+  if (!unlockedPatterns.includes('none')) unlockedPatterns.unshift('none')
+  const rewards = Array.isArray(d.rewards) ? d.rewards.filter(isValidReward) : []
+  const exchanges = Array.isArray(d.exchanges) ? d.exchanges.filter(isValidExchange) : []
   const celebrated =
     isRecord(d.celebrated) &&
     typeof d.celebrated.level === 'number' &&
@@ -153,6 +168,10 @@ export function parseBackup(text: string): ParseResult {
           ? d.appearance
           : 'auto',
       celebrated,
+      patternId: typeof d.patternId === 'string' ? d.patternId : 'none',
+      unlockedPatterns,
+      rewards,
+      exchanges,
     },
     summary: { workplaces: workplaces.length, shifts: shifts.length },
   }

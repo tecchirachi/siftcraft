@@ -139,14 +139,60 @@ cost: 400,
 vars: { '--brand': '#e3a008', '--brand2': '#f2c94c', '--bg': '#fffdf4', '--surface': '#ffffff', '--border': '#e5cd8a', '--accent': '#e3a008', '--accent-dark': '#b97e04', '--primary': '#96690a', '--on-primary': '#ffffff', '--primary-container': '#ffedb8', '--on-primary-container': '#4d3402', '--secondary-container': '#fdeeda', '--on-secondary-container': '#5c3412', '--tertiary': '#e07f45', '--surface-container-low': '#fdf6e0', '--surface-container': '#fbeecb', '--surface-container-high': '#f5e0a4' },
 swatch: ['#e3a008', '#f2c94c'],
 },
+{
+id: 'lavender',
+name: 'ラベンダー',
+cost: 500,
+vars: { '--brand': '#a78bda', '--brand2': '#f2a7c3', '--bg': '#faf8ff', '--surface': '#ffffff', '--border': '#d9cdf0', '--accent': '#a78bda', '--accent-dark': '#7d5fc0', '--primary': '#5b3ea8', '--on-primary': '#ffffff', '--primary-container': '#e7defa', '--on-primary-container': '#2e1a5e', '--secondary-container': '#fde4ef', '--on-secondary-container': '#5e2438', '--tertiary': '#f28bb4', '--surface-container-low': '#f3eefc', '--surface-container': '#e9e1f8', '--surface-container-high': '#ddd0f2' },
+swatch: ['#a78bda', '#f2a7c3'],
+},
+{
+id: 'matcha',
+name: 'マッチャ',
+cost: 650,
+vars: { '--brand': '#9ab86a', '--brand2': '#e3c878', '--bg': '#fbfcf5', '--surface': '#ffffff', '--border': '#d3ddb4', '--accent': '#9ab86a', '--accent-dark': '#6d8f3e', '--primary': '#476b1d', '--on-primary': '#ffffff', '--primary-container': '#e4efcd', '--on-primary-container': '#2c4710', '--secondary-container': '#fdf0cd', '--on-secondary-container': '#5c430c', '--tertiary': '#e08a3c', '--surface-container-low': '#f2f6e4', '--surface-container': '#e6eed2', '--surface-container-high': '#d8e4ba' },
+swatch: ['#9ab86a', '#e3c878'],
+},
 ]
+
+/**
+ * 背景パターン（Issue #44）: ポイントの使用先その2。
+ * アプリの背景に薄い模様を重ねる見た目のカスタマイズ。模様そのものは
+ * CSS のグラデーションで描くので、ここでは種類と価格だけを持つ。
+ */
+export interface BgPattern {
+id: string
+name: string
+cost: number
+}
+
+export const BG_PATTERNS: BgPattern[] = [
+{ id: 'none', name: 'なし（標準）', cost: 0 },
+{ id: 'dots', name: 'ドット', cost: 150 },
+{ id: 'stripe', name: 'ストライプ', cost: 250 },
+{ id: 'check', name: 'チェック', cost: 350 },
+]
+
+export function patternById(id: string): BgPattern {
+return BG_PATTERNS.find((p) => p.id === id) ?? BG_PATTERNS[0]
+}
 
 export function themeById(id: string): Theme {
 return THEMES.find((t) => t.id === id)?? THEMES[0]
 }
 
-/** ポイント残高 = 獲得 − 解放済みテーマの価格合計 */
-export function pointsBalance(stats: GameStats, unlockedIds: string[]): number {
-const spent = THEMES.filter((t) => unlockedIds.includes(t.id)).reduce((a, t) => a + t.cost, 0)
-return pointsEarnedOf(stats) - spent
+/**
+ * ポイント残高 = 獲得 − 解放済みテーマの価格合計 − 解放済みパターンの価格合計。
+ * ご褒美交換で使った分は「履歴」として残る性質が違うので、呼び出し側で
+ * 別途差し引く（テーマ/パターンは解放済み一覧から導出できるが、
+ * 交換は同じものを何度も買えるため履歴が要る）。
+ */
+export function pointsBalance(
+stats: GameStats,
+unlockedThemeIds: string[],
+unlockedPatternIds: string[] = [],
+): number {
+const themeSpent = THEMES.filter((t) => unlockedThemeIds.includes(t.id)).reduce((a, t) => a + t.cost, 0)
+const patternSpent = BG_PATTERNS.filter((p) => unlockedPatternIds.includes(p.id)).reduce((a, p) => a + p.cost, 0)
+return pointsEarnedOf(stats) - themeSpent - patternSpent
 }

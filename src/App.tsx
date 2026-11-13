@@ -34,7 +34,16 @@ import { periodFor } from './lib/payperiod'
 // 交通費の詳細設定（Issue #18）
 import { resolveTransport, type TransportMode } from './lib/transport'
 // レベル・ポイント・テーマ（Issue #21）
-import { levelOf, pointsBalance, pointsEarnedOf, THEMES, themeById } from './lib/game'
+import { BG_PATTERNS, levelOf, pointsBalance, pointsEarnedOf, THEMES, themeById } from './lib/game'
+// ご褒美交換（Issue #44）
+import {
+  EXCHANGES_KEY,
+  REWARDS_KEY,
+  totalExchangeCost,
+  validateReward,
+  type Exchange,
+  type RewardDef,
+} from './lib/rewards'
 import { evaluateBadges, TIER_BONUS_POINTS, TIER_COLORS, TIER_NAMES, totalTiers } from './lib/badge'
 import {
   APPEARANCE_KEY,
@@ -80,6 +89,9 @@ const ACTUALS_KEY = 'shiftcraft:actuals'
 // レベル・テーマ用（Issue #21）
 const THEME_KEY = 'shiftcraft:theme'
 const UNLOCKED_KEY = 'shiftcraft:unlockedThemes'
+// 背景パターン用（Issue #44）
+const PATTERN_KEY = 'shiftcraft:pattern'
+const UNLOCKED_PATTERNS_KEY = 'shiftcraft:unlockedPatterns'
 
 /** 実績（明細の支給額）: バイト先ID×対象月 → 金額 */
 interface ActualRecord {
@@ -164,6 +176,17 @@ const [unlockedThemes, setUnlockedThemes] = useState<string[]>(() => {
   const saved = load<string[]>(UNLOCKED_KEY, [])
   return saved.includes('peach') ? saved : ['peach', ...saved]
 })
+// 背景パターンとご褒美（Issue #44）
+const [patternId, setPatternId] = useState<string>(() => load(PATTERN_KEY, 'none'))
+const [unlockedPatterns, setUnlockedPatterns] = useState<string[]>(() => {
+  const saved = load<string[]>(UNLOCKED_PATTERNS_KEY, [])
+  return saved.includes('none') ? saved : ['none', ...saved]
+})
+const [rewards, setRewards] = useState<RewardDef[]>(() => load(REWARDS_KEY, []))
+const [exchanges, setExchanges] = useState<Exchange[]>(() => load(EXCHANGES_KEY, []))
+const [rewardName, setRewardName] = useState('')
+const [rewardCost, setRewardCost] = useState('')
+const [rewardErrors, setRewardErrors] = useState<string[]>([])
 const [repeatNote, setRepeatNote] = useState('')
 // 外観（Issue #30）: 手動設定＋端末のダーク設定を監視する
 const [appearance, setAppearance] = useState<Appearance>(() =>
@@ -228,6 +251,10 @@ const [slideDir, setSlideDir] = useState<'next' | 'prev' | ''>('')
 useEffect(() => localStorage.setItem(ACTUALS_KEY, JSON.stringify(actuals)), [actuals])
 useEffect(() => localStorage.setItem(THEME_KEY, JSON.stringify(themeId)), [themeId])
 useEffect(() => localStorage.setItem(UNLOCKED_KEY, JSON.stringify(unlockedThemes)), [unlockedThemes])
+useEffect(() => localStorage.setItem(PATTERN_KEY, JSON.stringify(patternId)), [patternId])
+useEffect(() => localStorage.setItem(UNLOCKED_PATTERNS_KEY, JSON.stringify(unlockedPatterns)), [unlockedPatterns])
+useEffect(() => localStorage.setItem(REWARDS_KEY, JSON.stringify(rewards)), [rewards])
+useEffect(() => localStorage.setItem(EXCHANGES_KEY, JSON.stringify(exchanges)), [exchanges])
 useEffect(() => localStorage.setItem(APPEARANCE_KEY, JSON.stringify(appearance)), [appearance])
 
   // ---- 派生データ ----
@@ -271,7 +298,8 @@ return { hourlyWage: wp.hourlyWage, transportPerShift: resolveTransport(wp, s.tr
   )
   // ティア到達はボーナスポイントになる（長期モチベーションとテーマ解放をつなぐ）
   const badgeBonus = totalTiers(badgeStatuses) * TIER_BONUS_POINTS
-  const points = pointsBalance(gameStats, unlockedThemes) + badgeBonus
+  // 残高 = 獲得 − テーマ − パターン − ご褒美交換（Issue #44 で使用先が増えた）
+  const points = pointsBalance(gameStats, unlockedThemes, unlockedPatterns) + badgeBonus - totalExchangeCost(exchanges)
   // 演出の検知（Issue #34）: 既達記録（最大値）と比べて増えた分だけ祝う。
   // 初回は記録だけして祝わない。依存は「レベル」と「ティアの並び」の文字列に絞る
   const badgeSig = badgeStatuses.map((s) => `${s.id}:${s.tier}`).join(',')
@@ -307,6 +335,35 @@ return { hourlyWage: wp.hourlyWage, transportPerShift: resolveTransport(wp, s.tr
   const unlockTheme = (id: string) => {
     if (!unlockedThemes.includes(id)) setUnlockedThemes((u) => [...u, id])
     setThemeId(id)
+  }
+  // 背景パターンの解放（Issue #44）: テーマと同じく、解放したらすぐ適用する
+  const unlockPattern = (id: string) => {
+    if (!unlockedPatterns.includes(id)) setUnlockedPatterns((u) => [...u, id])
+    setPatternId(id)
+  }
+  // ご褒美の登録（Issue #44）
+  const addReward = () => {
+    const cost = Number(rewardCost)
+    const errs = validateReward(rewardName, cost)
+    setRewardErrors(errs)
+    if (errs.length > 0) return
+    setRewards((prev) => [...prev, { id: crypto.randomUUID(), name: rewardName.trim(), cost }])
+    setRewardName('')
+    setRewardCost('')
+  }
+  // ご褒美と交換する（Issue #44）: ポイントを消費して履歴に残す
+  const exchangeReward = (def: RewardDef) => {
+    if (points < def.cost) return
+    setExchanges((prev) => [
+      {
+        id: crypto.randomUUID(),
+        name: def.name,
+        cost: def.cost,
+        date: new Date().toISOString().slice(0, 10),
+      },
+      ...prev,
+    ])
+    pushToasts([{ kind: 'note', text: `「${def.name}」と交換しました！おつかれさま` }])
   }
 const animatedTotal = useAnimatedNumber(total)
   const preview = calculatePay(form, settingsOf(form))
@@ -459,6 +516,10 @@ const animatedTotal = useAnimatedNumber(total)
       unlockedThemes,
       appearance,
       celebrated: load<CelebratedState | null>(CELEBRATED_KEY, null),
+      patternId,
+      unlockedPatterns,
+      rewards,
+      exchanges,
     }
     const text = serializeBackup(data, new Date().toISOString())
     const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
@@ -493,6 +554,10 @@ const animatedTotal = useAnimatedNumber(total)
     setActuals(pendingRestore.actuals)
     setThemeId(pendingRestore.themeId)
     setUnlockedThemes(pendingRestore.unlockedThemes)
+    setPatternId(pendingRestore.patternId)
+    setUnlockedPatterns(pendingRestore.unlockedPatterns)
+    setRewards(pendingRestore.rewards)
+    setExchanges(pendingRestore.exchanges)
     setAppearance(pendingRestore.appearance)
     if (pendingRestore.celebrated) {
       localStorage.setItem(CELEBRATED_KEY, JSON.stringify(pendingRestore.celebrated))
@@ -531,7 +596,7 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
   // ---- 画面 ----
   return (
     <main
-      className={`${page === 'calendar' ? 'app app-main' : 'app'}${darkEffective ? ' is-dark' : ''}`}
+      className={`${page === 'calendar' ? 'app app-main' : 'app'}${darkEffective ? ' is-dark' : ''}${patternId !== 'none' ? ` pattern-${patternId}` : ''}`}
       style={{
         ...(activeTheme.vars as CSSProperties),
         // ダーク時は面と文字の基本色を上書きする（Issue #30）。
@@ -952,6 +1017,91 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
             })}
           </div>
           <p className="page-note">テーマは色の組み合わせだけを変えます。データや計算には影響しません。</p>
+          {/* 背景パターン（Issue #44）: テーマと同じ解放方式で、背景の模様を変える */}
+          <span className="wp-totals-title">背景パターン（ポイントで解放）</span>
+          <div className="theme-grid">
+            {BG_PATTERNS.map((p) => {
+              const unlocked = unlockedPatterns.includes(p.id)
+              const active = patternId === p.id
+              const afford = points >= p.cost
+              return (
+                <div key={p.id} className={`theme-card${active ? ' active' : ''}`}>
+                  <span className={`pattern-preview pattern-${p.id}`} />
+                  <span className="theme-name">{p.name}</span>
+                  {active ? (
+                    <button className="step-btn" disabled>使用中</button>
+                  ) : unlocked ? (
+                    <button className="step-btn" onClick={() => setPatternId(p.id)}>使う</button>
+                  ) : afford ? (
+                    <button className="step-btn" onClick={() => unlockPattern(p.id)}>{p.cost} P で解放</button>
+                  ) : (
+                    <button className="step-btn" disabled>あと {p.cost - points} P</button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          {/* ご褒美交換（Issue #44）: 自分で決めたご褒美とポイントを交換する。
+              現実のお金は動かない、モチベーション専用の仕組み */}
+          <span className="wp-totals-title">ご褒美交換（ポイントの使い道）</span>
+          <p className="page-note">がんばった自分へのご褒美を登録しておいて、ポイントが貯まったら交換します。交換は履歴に残ります。</p>
+          {rewards.length === 0 && (
+            <p className="page-note">まだご褒美がありません。下のフォームから登録してみてください（例: ケーキ 300P）。</p>
+          )}
+          {rewards.map((r) => (
+            <div key={r.id} className="reward-row">
+              <span className="reward-name">{r.name}</span>
+              <span className="reward-cost">{r.cost} P</span>
+              {points >= r.cost ? (
+                <button className="step-btn" onClick={() => exchangeReward(r)}>交換する</button>
+              ) : (
+                <button className="step-btn" disabled>あと {r.cost - points} P</button>
+              )}
+              <button
+                className="delete-btn"
+                onClick={() => setRewards((prev) => prev.filter((x) => x.id !== r.id))}
+              >
+                削除
+              </button>
+            </div>
+          ))}
+          <div className="field-row-2">
+            <label className="field">
+              <span>ご褒美の名前</span>
+              <input
+                type="text"
+                placeholder="例: ケーキ"
+                value={rewardName}
+                onChange={(e) => setRewardName(e.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span>必要ポイント</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                placeholder="300"
+                value={rewardCost}
+                onChange={(e) => setRewardCost(e.target.value)}
+              />
+            </label>
+          </div>
+          {rewardErrors.length > 0 && (
+            <ul className="errors">
+              {rewardErrors.map((e) => (<li key={e}>{e}</li>))}
+            </ul>
+          )}
+          <button className="step-btn reward-add" onClick={addReward}>ご褒美を登録する</button>
+          {exchanges.length > 0 && (
+            <>
+              <span className="wp-totals-title">交換履歴</span>
+              {exchanges.slice(0, 10).map((e) => (
+                <p key={e.id} className="page-note exchange-row">
+                  {e.date} ・ {e.name}（{e.cost} P）
+                </p>
+              ))}
+            </>
+          )}
         </section>
       )}
 
@@ -1185,6 +1335,8 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                 </>
               ) : c.kind === 'summary' ? (
                 <span className="toast-text">ほか {c.count} 件の実績も達成しました</span>
+              ) : c.kind === 'note' ? (
+                <span className="toast-text">{c.text}</span>
               ) : (
                 <>
                   <span

@@ -37,6 +37,8 @@ export type Celebration =
     }
   /** 同時達成が多すぎるときのまとめ（Issue #42） */
   | { kind: 'summary'; count: number }
+  /** 任意のお知らせ（ご褒美交換の完了など、Issue #44） */
+  | { kind: 'note'; text: string }
 
 /**
  * 同時に表示する演出を最大 maxShown 件に絞る（Issue #42）。

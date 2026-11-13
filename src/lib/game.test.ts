@@ -46,4 +46,10 @@ expect(pointsBalance(stats, [])).toBe(600)
 expect(pointsBalance(stats, ['mint'])).toBe(550)
 expect(pointsBalance(stats, ['mint', 'soda'])).toBe(430)
 })
+it('残高は解放済みパターンの価格も引く（Issue #44）', () => {
+const stats = { totalWorkMinutes: 6000, totalShifts: 10} // 600P
+expect(pointsBalance(stats, [], ['dots'])).toBe(450)
+expect(pointsBalance(stats, ['mint'], ['dots', 'check'])).toBe(50)
+expect(pointsBalance(stats, [], ['none'])).toBe(600)
+})
 })

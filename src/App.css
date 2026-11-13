@@ -540,6 +540,36 @@ button:active { transform: scale(0.97); }
 .theme-swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.18); }
 .theme-name { font-weight: 700; font-size: 15px; }
 
+/* ===== 背景パターンとご褒美交換（Issue #44）【学習用解説】
+ * 模様は画像を使わず CSS グラデーションで描く（ファイル不要・テーマの
+ * --border 色を薄く使うので、どのテーマ/ダークでも馴染む）。
+ * .pattern-* はメイン画面（main）とプレビュー枠の両方に付ける */
+.pattern-dots {
+  background-image: radial-gradient(color-mix(in srgb, var(--border) 75%, transparent) 1.4px, transparent 1.6px);
+  background-size: 18px 18px;
+}
+.pattern-stripe {
+  background-image: repeating-linear-gradient(45deg, color-mix(in srgb, var(--border) 50%, transparent) 0 7px, transparent 7px 15px);
+}
+.pattern-check {
+  background-image:
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--border) 45%, transparent) 0 7px, transparent 7px 15px),
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--border) 45%, transparent) 0 7px, transparent 7px 15px);
+}
+.pattern-preview {
+  display: block; height: 36px; border-radius: 10px;
+  border: 1px solid var(--border); background-color: var(--surface);
+}
+.reward-row {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--border); border-radius: 14px;
+  padding: 8px 12px; background: var(--surface-container-low);
+}
+.reward-name { font-weight: 700; font-size: 15px; }
+.reward-cost { color: var(--muted); font-weight: 700; font-size: 14px; margin-left: auto; }
+.reward-add { justify-self: start; }
+.exchange-row { margin: 0; }
+
 /* ===== 年間収入トラッカー（Issue #22）【学習用解説】
  * 壁の進捗バーは状態で色が変わる: 余裕=ミント、注意=黄、超過=赤 */
 .year-total { margin: 0; font-size: 30px; font-weight: 800; line-height: 1.15; }

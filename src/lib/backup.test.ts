@@ -15,6 +15,10 @@ const sample: BackupData = {
   unlockedThemes: ['peach', 'mint'],
   appearance: 'dark',
   celebrated: { level: 3, tiers: { count: 1 } },
+  patternId: 'dots',
+  unlockedPatterns: ['none', 'dots'],
+  rewards: [{ id: 'r1', name: 'ケーキ', cost: 300 }],
+  exchanges: [{ id: 'e1', name: 'ケーキ', cost: 300, date: '2026-11-13' }],
 }
 
 describe('serializeBackup / parseBackup（Issue #38）', () => {
@@ -77,6 +81,30 @@ describe('serializeBackup / parseBackup（Issue #38）', () => {
       expect(r.data.appearance).toBe('auto')
       expect(r.data.actuals).toEqual([])
       expect(r.data.celebrated).toBeNull()
+      // Issue #44 の項目も既定値で補われる（古いバックアップ互換）
+      expect(r.data.patternId).toBe('none')
+      expect(r.data.unlockedPatterns).toContain('none')
+      expect(r.data.rewards).toEqual([])
+      expect(r.data.exchanges).toEqual([])
+    }
+  })
+
+  it('壊れたご褒美・交換履歴は落とす', () => {
+    const text = JSON.stringify({
+      app: 'ShiftCraft',
+      version: 1,
+      data: {
+        workplaces: sample.workplaces,
+        shifts: [],
+        rewards: [sample.rewards[0], { id: 'broken' }, null],
+        exchanges: [sample.exchanges[0], { name: 'x' }],
+      },
+    })
+    const r = parseBackup(text)
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.data.rewards).toHaveLength(1)
+      expect(r.data.exchanges).toHaveLength(1)
     }
   })
 })
