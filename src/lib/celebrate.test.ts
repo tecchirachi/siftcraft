@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { diffCelebrations, mergeCelebrated, type CelebratedState } from './celebrate'
+import { collapseCelebrations, diffCelebrations, mergeCelebrated, type CelebratedState, type Celebration } from './celebrate'
 import type { BadgeStatus } from './badge'
 
 function badge(id: string, tier: number): BadgeStatus {
@@ -39,5 +39,24 @@ describe('celebrate（Issue #34）', () => {
   it('merge は初回（null）でも現在値で作れる', () => {
     const merged = mergeCelebrated(null, 5, [badge('shifts', 2)])
     expect(merged).toEqual({ level: 5, tiers: { shifts: 2 } })
+  })
+})
+
+describe('collapseCelebrations（Issue #42）', () => {
+  const ev = (n: number): Celebration[] =>
+    Array.from({ length: n }, (_, i) => ({
+      kind: 'badge', name: `実績${i}`, mark: '◆', tier: 1, tierName: 'ブロンズ', achieved: true,
+    }))
+
+  it('3件まではそのまま', () => {
+    expect(collapseCelebrations(ev(3))).toHaveLength(3)
+    expect(collapseCelebrations(ev(1))).toHaveLength(1)
+    expect(collapseCelebrations(ev(0))).toEqual([])
+  })
+
+  it('4件以上は先頭2件＋まとめ1件に畳む', () => {
+    const out = collapseCelebrations(ev(5))
+    expect(out).toHaveLength(3)
+    expect(out[2]).toEqual({ kind: 'summary', count: 3 })
   })
 })

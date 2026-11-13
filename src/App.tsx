@@ -53,6 +53,7 @@ import { parseBackup, serializeBackup, type BackupData } from './lib/backup'
 import { summarizeWeeks, weeksInMonth } from './lib/weekhours'
 import {
   CELEBRATED_KEY,
+  collapseCelebrations,
   diffCelebrations,
   mergeCelebrated,
   type Celebration,
@@ -178,8 +179,21 @@ useEffect(() => {
   return () => mq.removeEventListener('change', onChange)
 }, [])
 const darkEffective = isDarkEffective(appearance, osDark)
-// 演出キュー（Issue #34）: レベルアップ・実績解除を順に表示する
-const [celebrations, setCelebrations] = useState<Celebration[]>([])
+// 演出トースト（Issue #34 → #42）: レベルアップ・実績解除を画面上部の
+// 小さなトーストで知らせる。1件ごとに ID を振り、数秒で自動的に消す。
+// 旧仕様の「画面を覆うカードをタップで閉じる」形は、何件も続くと操作を
+// 妨げて煩わしかったのでやめた（操作に影響しないのが最優先）
+interface ToastItem { id: number; c: Celebration }
+const [toasts, setToasts] = useState<ToastItem[]>([])
+const toastSeq = useRef(0)
+const pushToasts = (events: Celebration[]) => {
+  const items = events.map((c) => ({ id: ++toastSeq.current, c }))
+  if (items.length === 0) return
+  setToasts((q) => [...q, ...items])
+  for (const it of items) {
+    setTimeout(() => setToasts((q) => q.filter((t) => t.id !== it.id)), 3000)
+  }
+}
   const [page, setPage] = useState<Page>('calendar')
 // 月移動アニメーションの方向（Issue #19）
 const [slideDir, setSlideDir] = useState<'next' | 'prev' | ''>('')
@@ -265,7 +279,8 @@ return { hourlyWage: wp.hourlyWage, transportPerShift: resolveTransport(wp, s.tr
     const stored = load<CelebratedState | null>(CELEBRATED_KEY, null)
     if (stored) {
       const events = diffCelebrations(stored, levelInfo.level, levelInfo.title, badgeStatuses)
-      if (events.length > 0) setCelebrations((q) => [...q, ...events])
+      // 同時達成が多いときは「ほか○件」にまとめてから出す（Issue #42）
+      if (events.length > 0) pushToasts(collapseCelebrations(events))
     }
     localStorage.setItem(
       CELEBRATED_KEY,
@@ -869,9 +884,8 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                 type="button"
                 className="badge-card"
                 onClick={() =>
-                  // 実績タップで演出を再生（Issue #35）。未到達はグレーのプレビュー
-                  setCelebrations((q) => [
-                    ...q,
+                  // 実績タップで小さなトーストを再生（Issue #35 → #42）。未到達はグレーのプレビュー
+                  pushToasts([
                     s.tier > 0 && s.tierName
                       ? {
                           kind: 'badge', name: s.name, mark: s.mark, tier: s.tier,
@@ -1157,58 +1171,39 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
         </div>
       )}
 
-      {/* 演出オーバーレイ（Issue #34）: キネティックタイポグラフィ。
-          大きな文字が1文字ずつ弾んで入り、メダルがポップする。タップで次へ */}
-      {celebrations.length > 0 && (
-        <div
-          className="celebrate-backdrop"
-          onClick={() => setCelebrations((q) => q.slice(1))}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="celebrate-card">
-            {celebrations[0].kind === 'level' ? (
-              <>
-                <div className="celebrate-word" aria-label="レベルアップ">
-                  {'LEVEL UP!'.split('').map((ch, i) => (
-                    <span key={i} style={{ animationDelay: `${i * 55}ms` }}>
-                      {ch === ' ' ? ' ' : ch}
-                    </span>
-                  ))}
-                </div>
-                <div className="celebrate-big">Lv.{celebrations[0].level}</div>
-                <div className="celebrate-sub">{celebrations[0].title} になりました</div>
-              </>
-            ) : (
-              <>
-                <div
-                  className="celebrate-medal"
-                  style={{
-                    '--medal': celebrations[0].achieved
-                      ? TIER_COLORS[celebrations[0].tier - 1]
-                      : '#9aa5ad',
-                  } as CSSProperties}
-                >
-                  <span className="celebrate-medal-face">{celebrations[0].mark}</span>
-                </div>
-                <div className="celebrate-word small" aria-label={celebrations[0].name}>
-                  {celebrations[0].name.split('').map((ch, i) => (
-                    <span key={i} style={{ animationDelay: `${i * 70}ms` }}>
-                      {ch}
-                    </span>
-                  ))}
-                </div>
-                <div className="celebrate-sub">
-                  {celebrations[0].achieved
-                    ? `実績「${celebrations[0].name}」 ${celebrations[0].tierName} 達成！`
-                    : `未到達 ・ ${celebrations[0].progressText ?? ''}`}
-                </div>
-              </>
-            )}
-            <div className="celebrate-hint">
-              タップで閉じる{celebrations.length > 1 ? `（あと ${celebrations.length - 1} 件）` : ''}
+      {/* 演出トースト（Issue #42）: 画面上部に小さく重ねて出すだけ。
+          背景幕はなく pointer-events も切ってあるので、下の操作は一切止まらない。
+          3秒で自動で消える（消す操作も不要） */}
+      {toasts.length > 0 && (
+        <div className="toast-stack" aria-live="polite">
+          {toasts.map(({ id, c }) => (
+            <div key={id} className="toast">
+              {c.kind === 'level' ? (
+                <>
+                  <span className="toast-lv">Lv.{c.level}</span>
+                  <span className="toast-text">レベルアップ！ {c.title} になりました</span>
+                </>
+              ) : c.kind === 'summary' ? (
+                <span className="toast-text">ほか {c.count} 件の実績も達成しました</span>
+              ) : (
+                <>
+                  <span
+                    className="toast-medal"
+                    style={{
+                      '--medal': c.achieved ? TIER_COLORS[c.tier - 1] : '#9aa5ad',
+                    } as CSSProperties}
+                  >
+                    {c.mark}
+                  </span>
+                  <span className="toast-text">
+                    {c.achieved
+                      ? `実績「${c.name}」 ${c.tierName} 達成！`
+                      : `未到達 ・ ${c.progressText ?? ''}`}
+                  </span>
+                </>
+              )}
             </div>
-          </div>
+          ))}
         </div>
       )}
 
