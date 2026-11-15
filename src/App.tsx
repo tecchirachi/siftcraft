@@ -45,7 +45,7 @@ import {
   type Exchange,
   type RewardDef,
 } from './lib/rewards'
-import { evaluateBadges, TIER_BONUS_POINTS, TIER_COLORS, TIER_NAMES, totalTiers } from './lib/badge'
+import { evaluateBadges, TIER_BONUS_POINTS, TIER_COLORS, TIER_NAMES, TIER_TEXT_COLORS, totalTiers } from './lib/badge'
 import {
   APPEARANCE_KEY,
   APPEARANCE_OPTIONS,
@@ -1094,7 +1094,7 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                   />
                   <span
                     className="badge-mark medal-face"
-                    style={s.tier > 0 ? { background: TIER_COLORS[s.tier - 1], color: '#fff' } : undefined}
+                    style={s.tier > 0 ? { background: TIER_COLORS[s.tier - 1], color: TIER_TEXT_COLORS[s.tier - 1] } : undefined}
                   >
                     {s.mark}
                   </span>
@@ -1473,6 +1473,9 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                     className="toast-medal"
                     style={{
                       '--medal': c.achieved ? TIER_COLORS[c.tier - 1] : '#9aa5ad',
+                      // メダルの文字色はティア色ごとに読める方を使う（Issue #48）。
+                      // 未到達はシルバーの地なので、その文字色（濃茶）に合わせる
+                      color: c.achieved ? TIER_TEXT_COLORS[c.tier - 1] : TIER_TEXT_COLORS[1],
                     } as CSSProperties}
                   >
                     {c.mark}

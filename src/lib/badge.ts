@@ -45,6 +45,23 @@ export const TIER_COLORS = [
   '#c2185b',
 ] as const
 
+/**
+ * メダル面の文字色（Issue #48）。TIER_COLORS と同じ並び。
+ * 明るいティア色に白文字だと 2.3:1 程度しかなく読めないため、
+ * ティアごとに「濃茶 or 白」の読める方を選んである。
+ * どちらが読めるかはコントラスト比の計算で決め、テストで下限を固定する。
+ */
+export const TIER_TEXT_COLORS = [
+  '#3d2f10', // ブロンズ
+  '#3d2f10', // シルバー
+  '#3d2f10', // ゴールド
+  '#3d2f10', // プラチナ
+  '#3d2f10', // ダイヤ
+  '#ffffff', // マスター
+  '#ffffff', // グランドマスター
+  '#ffffff', // レジェンド
+] as const
+
 /** ティア1つあたりのボーナスポイント */
 export const TIER_BONUS_POINTS = 25
 

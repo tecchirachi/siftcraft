@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { evaluateBadges, TIER_NAMES, totalTiers, type BadgeEntry } from './badge'
+import { evaluateBadges, TIER_COLORS, TIER_NAMES, TIER_TEXT_COLORS, totalTiers, type BadgeEntry } from './badge'
 import type { PayBreakdown } from './pay'
 
 /** テスト用の内訳を作る（必要な項目だけ差し替える） */
@@ -146,5 +146,23 @@ describe('evaluateBadges（Issue #33 の追加カテゴリ）', () => {
     ])
     expect(m.get('weekend')?.value).toBe(2)
     expect(m.get('weekend')?.tier).toBe(1)
+  })
+})
+
+describe('メダルの文字色（Issue #48）', () => {
+  // 相対輝度とコントラスト比（WCAG の定義どおり）
+  const lum = (hex: string) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+    const f = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+  }
+  const contrast = (a: string, b: string) => {
+    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
+    return (hi + 0.05) / (lo + 0.05)
+  }
+  it('全ティアで文字色とのコントラストが 3.5:1 以上ある', () => {
+    TIER_COLORS.forEach((bg, i) => {
+      expect(contrast(TIER_TEXT_COLORS[i], bg)).toBeGreaterThanOrEqual(3.5)
+    })
   })
 })
