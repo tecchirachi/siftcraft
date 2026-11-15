@@ -52,6 +52,16 @@ font-family: 'Hiragino Maru Gothic ProN', 'Hiragino Sans', system-ui, sans-serif
 max-width: 480px;
 margin: 0 auto;
 background: var(--bg);
+/* 文字色の継承の起点（Issue #49）【学習用解説】
+ * color を指定しない要素（アプリ名の h1、年月の h2、通常の文章など）は
+ * 親から color を「継承」する。その親をたどると最後は body に届くが、
+ * body の color は body の場所で :root のライト用 --text（濃茶）で
+ * 計算済みの値なので、main に重ねたダーク上書きが効かず、ダークでも
+ * 濃茶のまま固定されていた（暗い面との対比 1.14〜1.46:1 でほぼ読めない）。
+ * ここで .app 自身に color: var(--text) を指定すると、.app は main 要素
+ * そのものでインラインのダーク上書きを持つため、正しい値で計算され、
+ * それが全ての子要素への継承の起点になる */
+color: var(--text);
 padding: 16px 16px calc(32px + env(safe-area-inset-bottom));
 display: grid;
 gap: 16px;
