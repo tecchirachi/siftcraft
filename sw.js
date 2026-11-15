@@ -3,7 +3,7 @@
 // 戦略: ネットワーク優先で取得し、成功したらキャッシュを更新。
 // 失敗（オフライン）したらキャッシュから返す。
 const CACHE = 'shiftcraft-v1'
-self.addEventListener('install', (event) => {
+self.addEventListener('install', () => {
   self.skipWaiting()
 })
 self.addEventListener('activate', (event) => {
