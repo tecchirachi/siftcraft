@@ -9,9 +9,9 @@
 *
 * 計算ルール（日本の一般的な割増ルールに沿った簡易モデル）:
 * - 実働時間 = (終了 - 開始) - 休憩。終了が開始以前なら翌日扱い（深夜シフト対応）
-* - 残業割増: 実働8時間を超えた分は +25%
-* - 深夜割増: 22:00〜翌5:00 にかかる分は +25%
-* - 残業かつ深夜の分は、割増が重なって +50%
+* - 残業割増: 実働8時間を超えた分は +25%（標準。バイト先ごとに変更可 — Issue #47）
+* - 深夜割増: 22:00〜翌5:00 にかかる分は +25%（同上）
+* - 残業かつ深夜の分は、割増が重なって 両率の合計（標準では +50%）
 * - 金額は「分あたり単価」で計算し、円未満は切り捨て
 *
 * 注意:
@@ -47,7 +47,15 @@ export interface PaySettings {
 hourlyWage: number
 /** 1勤務あたりの交通費（円） */
 transportPerShift: number
+/** 残業割増率（%）。未指定なら標準の25%（Issue #47: バイト先ごとに違うため設定化） */
+overtimeRatePct?: number
+/** 深夜割増率（%）。未指定なら標準の25% */
+lateNightRatePct?: number
 }
+
+/** 割増率の標準値（%）。法律の最低ラインであり、多くの勤務先の既定値 */
+export const DEFAULT_OVERTIME_RATE_PCT = 25
+export const DEFAULT_LATE_NIGHT_RATE_PCT = 25
 
 /** 計算結果の内訳。画面ではこの形のまま表示に使う */
 export interface PayBreakdown {
@@ -147,10 +155,13 @@ const regular = workMinutes - overtime - lateNight - overtimeLateNight
 // こうすると、残業時間に時給と割増を二重に付けるミスが起きない。
 const perMinute = settings.hourlyWage / 60 // 分あたり単価
 const allBase = Math.floor(perMinute * workMinutes) // 基本給（円未満切り捨て）
-const overtimeExtra = Math.floor(perMinute * 0.25 * (overtime + overtimeLateNight))
-const lateNightExtra = Math.floor(perMinute * 0.25 * (lateNight + overtimeLateNight))
+// 割増率はバイト先ごとに違うので設定から取る（未指定は標準25% — Issue #47）
+const overtimeRate = (settings.overtimeRatePct ?? DEFAULT_OVERTIME_RATE_PCT) / 100
+const lateNightRate = (settings.lateNightRatePct ?? DEFAULT_LATE_NIGHT_RATE_PCT) / 100
+const overtimeExtra = Math.floor(perMinute * overtimeRate * (overtime + overtimeLateNight))
+const lateNightExtra = Math.floor(perMinute * lateNightRate * (lateNight + overtimeLateNight))
 // ↑ 残業かつ深夜の分は、overtimeExtra と lateNightExtra の両方に
-// 含まれるので、合計で +50% になる。これが「割増が重なる」の実装。
+// 含まれるので、合計で「両率の合計%」になる。これが「割増が重なる」の実装。
 
 // --- 手順5: 内訳をオブジェクトにまとめて返す ---
 return {

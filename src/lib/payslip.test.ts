@@ -71,6 +71,8 @@ const slip = buildPayslip(period, [entry('2026-11-10', '09:00', '18:00', 60, 200
 it('明細の体裁で、期間・給料日・内訳・合計が入る', () => {
 const text = formatPayslipText('塾', 1000, slip)
 expect(text).toContain('給与明細（見込み）')
+expect(text).toContain('【勤務サマリー】')
+expect(text).toContain('【支給内訳】')
 expect(text).toContain('対象期間：2026年11月1日 〜 2026年11月30日')
 expect(text).toContain('給料日：2026年12月25日')
 expect(text).toContain('基本給：8,000円')
@@ -84,6 +86,12 @@ expect(text).toContain('実際の支給額：8,000円')
 expect(text).toContain('差額：−200円')
 const matched = formatPayslipText('塾', 1000, slip, 8200)
 expect(matched).toContain('差額なし（一致）')
+})
+it('割増率はバイト先の設定が表示に反映される（Issue #47）', () => {
+const text = formatPayslipText('塾', 1000, slip, null, { overtimeRatePct: 30, lateNightRatePct: 20 })
+expect(text).toContain('残業手当（+30%）')
+expect(text).toContain('深夜手当（+20%）')
+expect(text).toContain('重なり時間は +50% です')
 })
 it('時間の整形', () => {
 expect(formatMinutesJP(0)).toBe('0分')

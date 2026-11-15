@@ -2,7 +2,7 @@
 * バイト先ロジックのテスト
 */
 import { describe, it, expect} from 'vitest'
-import { migrateWorkplaces, resolveWorkplace, summarizeByWorkplace, workplaceColor, WORKPLACE_COLORS, type Workplace } from './workplace'
+import { migrateWorkplaces, resolveWorkplace, summarizeByWorkplace, workplaceColor, workplaceToSettings, WORKPLACE_COLORS, type Workplace } from './workplace'
 
 const legacy = { hourlyWage: 1200, transportPerShift: 500}
 const wps: Workplace[] = [
@@ -69,5 +69,20 @@ describe('workplaceColor', () => {
 
   it('見つからないIDは先頭の色にフォールバック', () => {
     expect(workplaceColor(wps, 'nope')).toBe(WORKPLACE_COLORS[0])
+  })
+})
+
+describe('割増率の受け渡し（Issue #47）', () => {
+  it('設定した率は計算用設定にそのまま渡る', () => {
+    const wp: Workplace = { id: 'x', name: '塾', hourlyWage: 1200, transportPerShift: 0, overtimeRatePct: 30, lateNightRatePct: 35 }
+    const s = workplaceToSettings(wp)
+    expect(s.overtimeRatePct).toBe(30)
+    expect(s.lateNightRatePct).toBe(35)
+  })
+  it('未設定なら undefined のまま（pay.ts 側で標準25%になる）', () => {
+    const wp: Workplace = { id: 'x', name: '塾', hourlyWage: 1200, transportPerShift: 0 }
+    const s = workplaceToSettings(wp)
+    expect(s.overtimeRatePct).toBeUndefined()
+    expect(s.lateNightRatePct).toBeUndefined()
   })
 })

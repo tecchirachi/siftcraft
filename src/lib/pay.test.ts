@@ -69,3 +69,31 @@ expect(r.workMinutes).toBe(0)
 expect(r.totalPay).toBe(500) // 交通費のみ
 })
 })
+
+describe('割増率のバイト先別設定（Issue #47）', () => {
+const base = { hourlyWage: 1000, transportPerShift: 0 }
+it('残業率50%なら残業手当は時給の50%分になる', () => {
+const r = calculatePay({ date: '2026-11-02', start: '09:00', end: '19:00', breakMinutes: 0 }, { ...base, overtimeRatePct: 50 })
+// 実働10h・残業2h: 基本給10000 + 残業手当 2h×1000×50% = 1000
+expect(r.overtimePay).toBe(1000)
+expect(r.totalPay).toBe(11000)
+})
+it('深夜率0%なら深夜手当は付かない', () => {
+const r = calculatePay({ date: '2026-11-02', start: '17:00', end: '23:00', breakMinutes: 0 }, { ...base, lateNightRatePct: 0 })
+expect(r.lateNightMinutes).toBe(60)
+expect(r.lateNightPay).toBe(0)
+expect(r.totalPay).toBe(6000)
+})
+it('重なりは両率の合計になる（残業30%・深夜20% → +50%相当の内訳）', () => {
+const r = calculatePay({ date: '2026-11-02', start: '14:00', end: '00:00', breakMinutes: 0 }, { ...base, overtimeRatePct: 30, lateNightRatePct: 20 })
+expect(r.overtimeLateNightMinutes).toBe(120)
+expect(r.overtimePay).toBe(600) // 2h × 1000 × 30%
+expect(r.lateNightPay).toBe(400) // 2h × 1000 × 20%
+expect(r.totalPay).toBe(11000)
+})
+it('率を指定しなければ従来どおり各25%', () => {
+const r = calculatePay({ date: '2026-11-02', start: '14:00', end: '00:00', breakMinutes: 0 }, base)
+expect(r.overtimePay).toBe(500)
+expect(r.lateNightPay).toBe(500)
+})
+})

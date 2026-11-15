@@ -31,6 +31,10 @@ transportMode?: import('./transport').TransportMode
 transportOneWay?: number
 /** 給料日（締め日の翌月のこの日、31=月末）。未設定なら25日（Issue #17） */
 payDay?: number
+/** 残業割増率（%）。未設定なら標準の25%（Issue #47） */
+overtimeRatePct?: number
+/** 深夜割増率（%）。未設定なら標準の25%（Issue #47） */
+lateNightRatePct?: number
 }
 
 /** 移行で作るデフォルトのバイト先のID */
@@ -65,7 +69,13 @@ return workplaces[0]?? { id: DEFAULT_WORKPLACE_ID, name: 'バイト先', hourlyW
 export function workplaceToSettings(wp: Workplace): PaySettings {
 // 交通費は方式から解決する（Issue #18）。import の循環を避けるため遅延参照ではなく
 // 同一ファイル内で完結させたいが、解決ロジックは transport.ts が正なのでそちらを使う
-return { hourlyWage: wp.hourlyWage, transportPerShift: transportPerShiftOf(wp) }
+// 割増率（Issue #47）もそのまま渡す。未設定（undefined）なら pay.ts 側で標準25%になる
+return {
+hourlyWage: wp.hourlyWage,
+transportPerShift: transportPerShiftOf(wp),
+overtimeRatePct: wp.overtimeRatePct,
+lateNightRatePct: wp.lateNightRatePct,
+}
 }
 
 /** バイト先別集計の入力（計算済みの行） */

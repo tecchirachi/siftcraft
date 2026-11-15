@@ -12,10 +12,12 @@
 * - 実績との差額判定は check.ts の comparePay を使う（表示側）。
 *
 * 注意（残業×深夜の重なり）:
-* 重なった時間は +50% だが、内訳としては「残業の +25%」が残業手当に、
-* 「深夜の +25%」が深夜手当に分かれて入っている。だから明細の行は
+* 重なった時間は「両率の合計%」（標準では +50%）だが、内訳としては
+* 残業率分が残業手当に、深夜率分が深夜手当に分かれて入っている。
+* だから明細の行は
 * 基本給 + 残業手当 + 深夜手当 + 交通費 = 合計 がそのまま成り立つ。
 * 重なり時間そのものは勤務サマリーに別途明示する。
+* 割増率はバイト先ごとに違う（Issue #47）ため、表示にもその率を使う。
 */
 
 import type { PayBreakdown} from './pay'
@@ -108,6 +110,11 @@ workplaceName: string,
 hourlyWage: number,
 slip: Payslip,
 actual?: number | null,
+/** 表示用の割増率（Issue #47）。省略時は標準の各25% */
+rates: { overtimeRatePct: number; lateNightRatePct: number } = {
+overtimeRatePct: 25,
+lateNightRatePct: 25,
+},
 ): string {
 const lines: string[] = [
 '給与明細（見込み）',
@@ -117,18 +124,18 @@ const lines: string[] = [
 `給料日：${formatDateJP(slip.period.payDate)}`,
 `時給：${yen(hourlyWage)}`,
 '------------------------',
-'',
+'【勤務サマリー】',
 `勤務日数：${slip.workDays}日`,
 `シフト数：${slip.shiftCount}件`,
 `総実働時間：${formatMinutesJP(slip.workMinutes)}`,
 `　うち残業：${formatMinutesJP(slip.overtimeMinutes + slip.overlapMinutes)}`,
 `　うち深夜：${formatMinutesJP(slip.lateNightMinutes + slip.overlapMinutes)}`,
-`　うち残業×深夜（+50%）：${formatMinutesJP(slip.overlapMinutes)}`,
+`　うち残業×深夜（+${rates.overtimeRatePct + rates.lateNightRatePct}%）：${formatMinutesJP(slip.overlapMinutes)}`,
 '------------------------',
-'',
+'【支給内訳】',
 `基本給：${yen(slip.basePay)}`,
-`残業手当（+25%）：${yen(slip.overtimePay)}`,
-`深夜手当（+25%）：${yen(slip.lateNightPay)}`,
+`残業手当（+${rates.overtimeRatePct}%）：${yen(slip.overtimePay)}`,
+`深夜手当（+${rates.lateNightRatePct}%）：${yen(slip.lateNightPay)}`,
 `交通費：${yen(slip.transportPay)}`,
 '------------------------',
 `支給見込み合計：${yen(slip.totalPay)}`,
@@ -139,7 +146,7 @@ const diffText = diff === 0? '差額なし（一致）': `差額：${diff > 0? '
 lines.push(`実際の支給額：${yen(actual)}`, diffText)
 }
 lines.push(
-'※ 残業×深夜の重なり時間は +50% です（残業手当と深夜手当に25%ずつ含まれます）',
+`※ 残業×深夜の重なり時間は +${rates.overtimeRatePct + rates.lateNightRatePct}% です（残業手当と深夜手当に分かれて含まれます）`,
 '※ これは見込みの計算です。実際の明細と異なる場合があります',
 )
 return lines.join('\n')

@@ -264,9 +264,14 @@ useEffect(() => localStorage.setItem(APPEARANCE_KEY, JSON.stringify(appearance))
   // シフトのバイト先を解決し、そのバイト先の時給・交通費で計算するためのヘルパー
   const wpOf = (s: ShiftForm) => resolveWorkplace(workplaces, s.workplaceId)
   const settingsOf = (s: ShiftForm) => {
-// 時給はバイト先から、交通費は「方式 or シフト個別の上書き」から解決する（Issue #18）
+// 時給と割増率はバイト先から、交通費は「方式 or シフト個別の上書き」から解決する（Issue #18, #47）
 const wp = wpOf(s)
-return { hourlyWage: wp.hourlyWage, transportPerShift: resolveTransport(wp, s.transportOverride)}
+return {
+  hourlyWage: wp.hourlyWage,
+  transportPerShift: resolveTransport(wp, s.transportOverride),
+  overtimeRatePct: wp.overtimeRatePct,
+  lateNightRatePct: wp.lateNightRatePct,
+}
 }
   // 合計はカレンダー表示中の月に連動する（Issue #10）
   const monthKey = `${viewYM.year}-${pad2(viewYM.month)}`
@@ -617,9 +622,15 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
   const payslipActual = payslipWp && payslipPeriod
     ? actuals.find((a) => a.workplaceId === payslipWp.id && a.yearMonth === payslipPeriod.end.slice(0, 7))?.amount ?? null
     : null
+  // 明細に表示する割増率（Issue #47）: バイト先の設定、未設定なら標準25%
+  const slipOtRate = payslipWp?.overtimeRatePct ?? 25
+  const slipLnRate = payslipWp?.lateNightRatePct ?? 25
   const downloadPayslip = () => {
     if (!payslipWp || !payslip) return
-    const text = formatPayslipText(payslipWp.name, payslipWp.hourlyWage, payslip, payslipActual)
+    const text = formatPayslipText(payslipWp.name, payslipWp.hourlyWage, payslip, payslipActual, {
+      overtimeRatePct: slipOtRate,
+      lateNightRatePct: slipLnRate,
+    })
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -838,8 +849,8 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                 </div>
                 <div className="payslip-rows">
                   <span className="payslip-row"><span>基本給</span><span>{formatYen(payslip.basePay)}</span></span>
-                  <span className="payslip-row"><span>残業手当（+25%）</span><span>{formatYen(payslip.overtimePay)}</span></span>
-                  <span className="payslip-row"><span>深夜手当（+25%）</span><span>{formatYen(payslip.lateNightPay)}</span></span>
+                  <span className="payslip-row"><span>残業手当（+{slipOtRate}%）</span><span>{formatYen(payslip.overtimePay)}</span></span>
+                  <span className="payslip-row"><span>深夜手当（+{slipLnRate}%）</span><span>{formatYen(payslip.lateNightPay)}</span></span>
                   <span className="payslip-row"><span>交通費</span><span>{formatYen(payslip.transportPay)}</span></span>
                   <span className="payslip-row total"><span>支給見込み合計</span><span>{formatYen(payslip.totalPay)}</span></span>
                 </div>
@@ -851,7 +862,7 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                     </span>
                   )
                 })()}
-                <p className="page-note">残業×深夜の重なり時間は +50%（残業手当と深夜手当に25%ずつ含まれます）。期間は締め日基準のため、カレンダー月の合計とは異なる場合があります。</p>
+                <p className="page-note">残業×深夜の重なり時間は +{slipOtRate + slipLnRate}%（残業 +{slipOtRate}% と深夜 +{slipLnRate}% の合算）です。期間は締め日基準のため、カレンダー月の合計とは異なる場合があります。</p>
                 <button type="button" className="step-btn" onClick={downloadPayslip}>テキストで書き出す</button>
               </div>
             </div>
@@ -982,6 +993,31 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                 <span>メモ（任意）</span>
                 <input type="text" list="dl-memos" value={w.memo ?? ''} placeholder="例: シフト提出は毎月15日まで" onChange={(e) => updateWorkplace(w.id, { memo: e.target.value })} />
               </label>
+              {/* 割増率（Issue #47）: 深夜手当などはバイト先ごとに違うため、率を個別に持つ */}
+              <div className="field-row-2">
+                <label className="field">
+                  <span>残業割増（%）</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={200}
+                    value={w.overtimeRatePct ?? 25}
+                    onChange={(e) => updateWorkplace(w.id, { overtimeRatePct: Math.max(0, Math.min(200, Number(e.target.value) || 0)) })}
+                  />
+                </label>
+                <label className="field">
+                  <span>深夜割増（%）</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={200}
+                    value={w.lateNightRatePct ?? 25}
+                    onChange={(e) => updateWorkplace(w.id, { lateNightRatePct: Math.max(0, Math.min(200, Number(e.target.value) || 0)) })}
+                  />
+                </label>
+              </div>
               {/* 締め日・給料日（Issue #17）: 集計ページの「次の給料日」に使う */}
               <div className="field-row-2">
                 <label className="field">
