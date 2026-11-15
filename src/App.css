@@ -542,6 +542,18 @@ button:active { transform: scale(0.97); }
 /* レベル条件の案内（Issue #45） */
 .theme-need { font-size: 12px; color: var(--muted); font-weight: 700; }
 
+/* 給与明細カード（Issue #46）: 紙の明細っぽく、面と罫線で見せる */
+.payslip-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; padding: 14px; display: grid; gap: 8px;
+}
+.payslip-head { display: flex; justify-content: space-between; font-weight: 800; font-size: 16px; }
+.payslip-line { font-size: 14px; color: var(--muted); font-weight: 700; }
+.payslip-rows { display: grid; gap: 4px; border-top: 1px dashed var(--border); padding-top: 8px; }
+.payslip-row { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; }
+.payslip-row.sub { color: var(--muted); font-size: 13px; padding-left: 12px; }
+.payslip-row.total { border-top: 2px solid var(--border); padding-top: 6px; font-size: 16px; font-weight: 800; }
+
 /* ===== 背景パターンとご褒美交換（Issue #44）【学習用解説】
  * 模様は画像を使わず CSS グラデーションで描く（ファイル不要・テーマの
  * --border 色を薄く使うので、どのテーマ/ダークでも馴染む）。

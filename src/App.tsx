@@ -31,6 +31,7 @@ import { frequentPatterns, stepTime, uniqueSuggestions } from './lib/suggest'
 import { comparePay } from './lib/check'
 import { weeklyDates } from './lib/repeat'
 import { periodFor } from './lib/payperiod'
+import { buildPayslip, formatDateJP, formatMinutesJP, formatPayslipText, payslipPeriodFor } from './lib/payslip'
 // 交通費の詳細設定（Issue #18）
 import { resolveTransport, type TransportMode } from './lib/transport'
 // レベル・ポイント・テーマ（Issue #21）
@@ -168,6 +169,8 @@ export default function App() {
   const [shifts, setShifts] = useState<ShiftRecord[]>(() => load(SHIFTS_KEY, []))
   const [goalYen, setGoalYen] = useState<number>(() => load(GOAL_KEY, 80000))
 const [actuals, setActuals] = useState<ActualRecord[]>(() => load(ACTUALS_KEY, []))
+// 給与明細ビューで表示中のバイト先（Issue #46）。null なら先頭のバイト先
+const [payslipWpId, setPayslipWpId] = useState<string | null>(null)
 // 繰り返し登録の回数と、直近の登録結果メッセージ（Issue #16）
 const [repeatCount, setRepeatCount] = useState(1)
 // 使用中テーマと解放済みテーマ（Issue #21）
@@ -596,6 +599,38 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
     URL.revokeObjectURL(url)
   }
 
+  // ---- 給与明細（Issue #46） ----
+  // 表示中のバイト先の、表示月に締め日が来る支給期間で明細を作る
+  const payslipWp = workplaces.find((w) => w.id === payslipWpId) ?? workplaces[0]
+  const payslipPeriod = payslipWp
+    ? payslipPeriodFor(monthKey, payslipWp.closingDay ?? 31, payslipWp.payDay ?? 25)
+    : null
+  const payslip = payslipWp && payslipPeriod
+    ? buildPayslip(
+        payslipPeriod,
+        shifts
+          .filter((s) => wpOf(s).id === payslipWp.id)
+          .map((s) => ({ date: s.date, breakdown: calculatePay(s, settingsOf(s)) })),
+      )
+    : null
+  // 実績は「締め月」のキーで引く（締め日31日なら表示月と一致する）
+  const payslipActual = payslipWp && payslipPeriod
+    ? actuals.find((a) => a.workplaceId === payslipWp.id && a.yearMonth === payslipPeriod.end.slice(0, 7))?.amount ?? null
+    : null
+  const downloadPayslip = () => {
+    if (!payslipWp || !payslip) return
+    const text = formatPayslipText(payslipWp.name, payslipWp.hourlyWage, payslip, payslipActual)
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    // ファイル名に使えない文字は取り除く
+    const safeName = payslipWp.name.replace(/[/\\?%*:|"<>]/g, '')
+    a.download = `payslip-${safeName}-${payslip.period.end}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   // ---- 画面 ----
   return (
     <main
@@ -774,6 +809,51 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
                   </div>
                 )
               })}
+            </div>
+          )}
+          {/* 給与明細（Issue #46）: 締め日期間ごとの明細ビューとテキスト書き出し */}
+          {payslipWp && payslip && (
+            <div className="check-block">
+              <span className="wp-totals-title">給与明細（見込み）</span>
+              <div className="pattern-row">
+                {workplaces.map((w) => (
+                  <button key={w.id} type="button" className={`pattern-chip${w.id === payslipWp.id ? ' active' : ''}`} onClick={() => setPayslipWpId(w.id)}>
+                    <span className="wp-dot" style={{ background: workplaceColor(workplaces, w.id) }} />{w.name}
+                  </button>
+                ))}
+              </div>
+              <div className="payslip-card">
+                <div className="payslip-head">
+                  <span>{payslipWp.name}</span>
+                  <span>時給 {formatYen(payslipWp.hourlyWage)}</span>
+                </div>
+                <span className="payslip-line">対象期間：{formatDateJP(payslip.period.start)} 〜 {formatDateJP(payslip.period.end)}</span>
+                <span className="payslip-line">給料日：{formatDateJP(payslip.period.payDate)}</span>
+                <div className="payslip-rows">
+                  <span className="payslip-row"><span>勤務日数</span><span>{payslip.workDays}日（{payslip.shiftCount}件）</span></span>
+                  <span className="payslip-row"><span>総実働時間</span><span>{formatMinutesJP(payslip.workMinutes)}</span></span>
+                  <span className="payslip-row sub"><span>うち残業</span><span>{formatMinutesJP(payslip.overtimeMinutes + payslip.overlapMinutes)}</span></span>
+                  <span className="payslip-row sub"><span>うち深夜</span><span>{formatMinutesJP(payslip.lateNightMinutes + payslip.overlapMinutes)}</span></span>
+                  <span className="payslip-row sub"><span>うち残業×深夜（+50%）</span><span>{formatMinutesJP(payslip.overlapMinutes)}</span></span>
+                </div>
+                <div className="payslip-rows">
+                  <span className="payslip-row"><span>基本給</span><span>{formatYen(payslip.basePay)}</span></span>
+                  <span className="payslip-row"><span>残業手当（+25%）</span><span>{formatYen(payslip.overtimePay)}</span></span>
+                  <span className="payslip-row"><span>深夜手当（+25%）</span><span>{formatYen(payslip.lateNightPay)}</span></span>
+                  <span className="payslip-row"><span>交通費</span><span>{formatYen(payslip.transportPay)}</span></span>
+                  <span className="payslip-row total"><span>支給見込み合計</span><span>{formatYen(payslip.totalPay)}</span></span>
+                </div>
+                {payslipActual !== null && (() => {
+                  const r = comparePay(payslip.totalPay, payslipActual)
+                  return (
+                    <span className={`check-diff ${r.status}`}>
+                      実績 {formatYen(payslipActual)} ・ {r.status === 'match' ? '一致しました' : r.status === 'over' ? `実績が ${formatYen(r.diff ?? 0)} 多い` : `実績が ${formatYen(Math.abs(r.diff ?? 0))} 少ない`}
+                    </span>
+                  )
+                })()}
+                <p className="page-note">残業×深夜の重なり時間は +50%（残業手当と深夜手当に25%ずつ含まれます）。期間は締め日基準のため、カレンダー月の合計とは異なる場合があります。</p>
+                <button type="button" className="step-btn" onClick={downloadPayslip}>テキストで書き出す</button>
+              </div>
             </div>
           )}
           {/* 次の給料日（Issue #17）: 今日が属する支給期間の見込みと給料日 */}
