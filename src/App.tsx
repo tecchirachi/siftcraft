@@ -13,7 +13,15 @@
  * - 日付タップでモーダルが開き、その日の確認と入力ができる（Issue #13）
  */
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+  type TouchEvent as ReactTouchEvent,
+} from 'react'
 import './App.css'
 import { calculatePay, formatMinutes, formatYen, type ShiftInput } from './lib/pay'
 import { goalProgress } from './lib/goal'
@@ -55,6 +63,8 @@ import {
   type Appearance,
 } from './lib/appearance'
 import { tapAction } from './lib/tap'
+// カレンダーのフリック判定（Issue #50）
+import { swipeDirection } from './lib/swipe'
 // シフト編集（Issue #37）
 import { replaceShift } from './lib/editshift'
 // バックアップ/復元（Issue #38）
@@ -223,6 +233,41 @@ const pushToasts = (events: Celebration[]) => {
   const [page, setPage] = useState<Page>('calendar')
 // 月移動アニメーションの方向（Issue #19）
 const [slideDir, setSlideDir] = useState<'next' | 'prev' | ''>('')
+// カレンダーのフリック（Issue #50）: タッチ開始位置と、フリック直後に
+// 発火する click を1回だけ無効化するための期限を持つ。
+// フリックは「日セルを押して横に弾く」操作になるため、そのままでは
+// touchend の後に同じセルへの click（タップ扱い）も発火してしまい、
+// 月が変わると同時に日が選択／モーダルが開く、という二重動作になる
+const touchStartRef = useRef<{ x: number; y: number } | null>(null)
+const suppressClickUntilRef = useRef(0)
+// 月移動はボタンとフリックで共用する（方向→スライドアニメ＋年月更新）
+const goMonth = (dir: 'next' | 'prev') => {
+  setSlideDir(dir)
+  setViewYM((v) => shiftMonth(v.year, v.month, dir === 'next' ? 1 : -1))
+}
+const handleCalTouchStart = (e: ReactTouchEvent) => {
+  const t = e.touches[0]
+  touchStartRef.current = t ? { x: t.clientX, y: t.clientY } : null
+}
+const handleCalTouchEnd = (e: ReactTouchEvent) => {
+  const start = touchStartRef.current
+  touchStartRef.current = null
+  const t = e.changedTouches[0]
+  if (!start || !t) return
+  const dir = swipeDirection(start.x, start.y, t.clientX, t.clientY)
+  if (dir) {
+    // このフリックに続く click はタップではないので飲み込む
+    suppressClickUntilRef.current = Date.now() + 500
+    goMonth(dir)
+  }
+}
+const handleCalClickCapture = (e: ReactMouseEvent) => {
+  if (Date.now() < suppressClickUntilRef.current) {
+    suppressClickUntilRef.current = 0
+    e.preventDefault()
+    e.stopPropagation()
+  }
+}
   const [menuOpen, setMenuOpen] = useState(false)
   const [dayModalOpen, setDayModalOpen] = useState(false)
   const [errors, setErrors] = useState<string[]>([])
@@ -712,11 +757,19 @@ actuals.find((a) => a.workplaceId === workplaceId && a.yearMonth === monthKey)?.
             </button>
           )}
 
-          <section className="card cal-card">
+          {/* フリックで月移動（Issue #50）: カード全体でタッチの開始／終了を受け、
+              横フリックなら月を切り替える。タップ（日セル選択）は移動量が小さい
+              ため swipeDirection が null を返し、これまでどおり動作する */}
+          <section
+            className="card cal-card"
+            onTouchStart={handleCalTouchStart}
+            onTouchEnd={handleCalTouchEnd}
+            onClickCapture={handleCalClickCapture}
+          >
             <div className="card-head">
-              <button className="nav-btn" aria-label="前の月" onClick={() => { setSlideDir('prev'); setViewYM((v) => shiftMonth(v.year, v.month, -1)) }}>‹</button>
+              <button className="nav-btn" aria-label="前の月" onClick={() => goMonth('prev')}>‹</button>
               <h2>{viewYM.year}年{viewYM.month}月</h2>
-              <button className="nav-btn" aria-label="次の月" onClick={() => { setSlideDir('next'); setViewYM((v) => shiftMonth(v.year, v.month, 1)) }}>›</button>
+              <button className="nav-btn" aria-label="次の月" onClick={() => goMonth('next')}>›</button>
             </div>
             {/* 月が変わるたびに key が変わって再マウントされ、スライドアニメーションが再生される */}
 <div key={monthKey} className={`cal-anim${slideDir ? ` slide-${slideDir}` : ''}`}>

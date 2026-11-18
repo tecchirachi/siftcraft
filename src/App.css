@@ -325,6 +325,10 @@ font-size: 13px; cursor: pointer; padding: 4px 2px; min-height: 28px;
 .summary-goal { color: var(--muted); font-size: 14px; font-weight: 700; }
 .goal-bar.mini { height: 8px; margin: 0 4px; }
 .cal-card { flex: 1; display: flex; flex-direction: column; min-height: 0; margin: 0; }
+/* フリックで月移動（Issue #50）: 横方向のタッチ操作はブラウザのジェスチャーに
+   奪われずアプリ側へ渡す（touch-action: pan-y = 縦スクロールだけブラウザ処理）。
+   これがないと横フリックがブラウザに消費され、touchend まで届かないことがある */
+.cal-card { touch-action: pan-y; }
 .cal-grid.fill { flex: 1; grid-auto-rows: 1fr; min-height: 0; }
 .cal-grid.fill .cal-cell { min-height: 0; height: 100%; }
 .page-card { display: grid; gap: 14px; align-content: start; }
