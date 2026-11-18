@@ -91,4 +91,11 @@ npm run build   # 本番ビルド
 
 ## ライセンス
 
-MIT
+このプロジェクト（ShiftCraft 本体）は **MIT License** です。全文は [LICENSE](./LICENSE) ファイルを参照してください。
+
+### 使用ライブラリのライセンス
+
+このプロジェクトは以下のオープンソースライブラリを使用しています。各ライブラリのライセンス文は、それぞれのパッケージに同梱されています。
+
+- **MIT License**: React、React DOM、Vite、Vitest、@vitejs/plugin-react、oxlint、@types/node、@types/react、@types/react-dom
+- **Apache License 2.0**: TypeScript
